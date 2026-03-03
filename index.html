@@ -2,76 +2,560 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <title>Thi hát Karaoke 8/3</title>
+  <title>🎤 Thi Hát Karaoke 8/3</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Bootstrap 5 -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
-
-  <!-- Confetti + Fireworks -->
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-</head>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="config.js"></script>
 
+  <style>
+    :root {
+      --rose: #e91e63;
+      --rose-dark: #ad1457;
+      --rose-light: #fce4ec;
+      --purple: #7b1fa2;
+      --gold: #f59e0b;
+      --silver: #94a3b8;
+      --bronze: #b45309;
+      --text: #1a0a14;
+      --text-muted: #6b4a5e;
+      --bg: #fff5f8;
+      --card-bg: #ffffff;
+      --border: rgba(233,30,99,0.15);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Be Vietnam Pro', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    /* ===== HERO ===== */
+    .hero {
+      min-height: 100vh;
+      background: linear-gradient(150deg, #1a0a14 0%, #4a0d2e 40%, #7b1fa2 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; padding: 2rem;
+      position: relative; overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 20% 50%, rgba(233,30,99,0.3) 0%, transparent 60%),
+                  radial-gradient(ellipse at 80% 20%, rgba(123,31,162,0.4) 0%, transparent 50%);
+    }
+
+    .hero-badge {
+      position: relative; z-index: 2;
+      display: inline-block;
+      background: rgba(233,30,99,0.2);
+      border: 1px solid rgba(233,30,99,0.5);
+      color: #f48fb1;
+      font-size: 0.75rem; font-weight: 600;
+      letter-spacing: 3px; text-transform: uppercase;
+      padding: 0.4rem 1.2rem; border-radius: 100px;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+      position: relative; z-index: 2;
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 5vw, 3.8rem);
+      font-weight: 900; color: #ffffff;
+      line-height: 1.15;
+      text-shadow: 0 4px 30px rgba(0,0,0,0.5);
+      margin-bottom: 1rem;
+    }
+
+    .hero h1 span { color: #f48fb1; }
+
+    .hero-sub {
+      position: relative; z-index: 2;
+      font-size: 1.1rem; font-weight: 300;
+      color: rgba(255,255,255,0.75);
+      max-width: 520px; line-height: 1.7;
+      margin-bottom: 2.5rem;
+    }
+
+    #countdown {
+      position: relative; z-index: 2;
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: rgba(255,255,255,0.12);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #ffffff;
+      font-size: 1.3rem; font-weight: 700;
+      padding: 0.9rem 2rem; border-radius: 60px;
+      letter-spacing: 1px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+
+    #countdown.ended {
+      background: rgba(233,30,99,0.3);
+      border-color: rgba(233,30,99,0.6);
+      color: #f48fb1;
+    }
+
+    .scroll-hint {
+      position: absolute; bottom: 2rem; left: 50%;
+      transform: translateX(-50%); z-index: 2;
+      color: rgba(255,255,255,0.5);
+      font-size: 0.8rem; letter-spacing: 2px;
+      text-transform: uppercase;
+      animation: fadeUpDown 2s ease-in-out infinite;
+    }
+
+    @keyframes fadeUpDown {
+      0%,100% { opacity:0.4; transform: translateX(-50%) translateY(0); }
+      50% { opacity:1; transform: translateX(-50%) translateY(-8px); }
+    }
+
+    /* ===== MAIN ===== */
+    .main-wrap { max-width: 800px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+
+    /* ===== CARD ===== */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: 0 4px 24px rgba(233,30,99,0.08);
+      padding: 2rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .card-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem; font-weight: 700;
+      color: var(--text);
+      margin-bottom: 1.5rem;
+      display: flex; align-items: center; gap: 0.6rem;
+    }
+
+    /* ===== FORM ===== */
+    .form-group { margin-bottom: 1.2rem; }
+
+    label {
+      display: block;
+      font-size: 0.85rem; font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 0.4rem;
+    }
+
+    select, input[type="number"], input[type="text"] {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-family: 'Be Vietnam Pro', sans-serif;
+      font-size: 1rem; color: var(--text);
+      background: #fff;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+
+    select:focus, input:focus {
+      border-color: var(--rose);
+      box-shadow: 0 0 0 4px rgba(233,30,99,0.1);
+    }
+
+    .btn-vote {
+      width: 100%;
+      padding: 1rem;
+      background: linear-gradient(135deg, var(--rose), var(--purple));
+      color: white; border: none;
+      border-radius: 12px; cursor: pointer;
+      font-family: 'Be Vietnam Pro', sans-serif;
+      font-size: 1.05rem; font-weight: 700;
+      letter-spacing: 0.5px;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 6px 20px rgba(233,30,99,0.35);
+    }
+
+    .btn-vote:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(233,30,99,0.45); }
+    .btn-vote:active { transform: translateY(0); }
+    .btn-vote:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    #voteMessage {
+      text-align: center; margin-top: 1rem;
+      font-weight: 600; font-size: 0.95rem;
+      min-height: 1.5rem;
+    }
+    .msg-success { color: #16a34a; }
+    .msg-error { color: var(--rose); }
+
+    /* ===== VOTING DISABLED ===== */
+    .voting-closed-notice {
+      background: linear-gradient(135deg, #fce4ec, #f3e5f5);
+      border: 2px solid rgba(233,30,99,0.3);
+      border-radius: 16px; padding: 1.5rem;
+      text-align: center; color: var(--text-muted);
+      font-weight: 500; font-size: 1rem;
+    }
+
+    /* ===== RESULTS SECTION ===== */
+    #resultsSection {
+      display: none;
+    }
+
+    /* ===== TOP 3 ===== */
+    .top3-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 600px) { .top3-grid { grid-template-columns: 1fr; } }
+
+    .medal-card {
+      border-radius: 16px; padding: 1.5rem;
+      text-align: center;
+      border: 2px solid transparent;
+      position: relative; overflow: hidden;
+      transition: transform 0.3s;
+    }
+    .medal-card:hover { transform: translateY(-5px); }
+
+    .medal-card.rank-1 {
+      background: linear-gradient(135deg, #fef9c3, #fde68a);
+      border-color: var(--gold);
+      box-shadow: 0 8px 30px rgba(245,158,11,0.3);
+    }
+    .medal-card.rank-2 {
+      background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+      border-color: var(--silver);
+      box-shadow: 0 8px 30px rgba(148,163,184,0.3);
+    }
+    .medal-card.rank-3 {
+      background: linear-gradient(135deg, #fef3c7, #fde68a);
+      border-color: var(--bronze);
+      box-shadow: 0 8px 30px rgba(180,83,9,0.25);
+    }
+
+    .medal-emoji {
+      font-size: 2.8rem;
+      display: block; margin-bottom: 0.5rem;
+      animation: bounce 1.8s ease-in-out infinite;
+    }
+    @keyframes bounce {
+      0%,100% { transform:translateY(0); }
+      50% { transform:translateY(-8px); }
+    }
+
+    .medal-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.1rem; font-weight: 700;
+      color: var(--text); margin-bottom: 0.4rem;
+    }
+
+    .medal-score {
+      font-size: 1.9rem; font-weight: 900;
+      color: var(--rose); line-height: 1;
+    }
+
+    .medal-votes {
+      font-size: 0.8rem; color: var(--text-muted);
+      font-weight: 500; margin-top: 0.3rem;
+    }
+
+    /* ===== CHART ===== */
+    .chart-wrap { position: relative; height: 280px; }
+
+    /* ===== PENDING MESSAGE ===== */
+    #pendingMsg {
+      text-align: center; padding: 3rem 1rem;
+      color: var(--text-muted);
+    }
+    #pendingMsg .big-icon { font-size: 3rem; margin-bottom: 0.5rem; }
+    #pendingMsg p { font-size: 1rem; font-weight: 500; }
+
+    /* ===== SECTION HEADING ===== */
+    .section-heading {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem; font-weight: 900;
+      text-align: center; color: var(--text);
+      margin-bottom: 1.5rem;
+    }
+    .section-heading span { color: var(--rose); }
+
+    /* ===== FLOATING MUSIC BTN ===== */
+    #musicToggle {
+      position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 999;
+      width: 52px; height: 52px;
+      background: var(--rose); color: white;
+      border: none; border-radius: 50%; cursor: pointer;
+      font-size: 1.3rem;
+      box-shadow: 0 6px 20px rgba(233,30,99,0.4);
+      transition: transform 0.2s;
+    }
+    #musicToggle:hover { transform: scale(1.1); }
+
+    /* ===== DIVIDER ===== */
+    .divider {
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--rose), transparent);
+      margin: 2.5rem 0;
+    }
+  </style>
+</head>
 <body>
 
-<!-- 🌸 Hoa rơi -->
-<div class="flowers"></div>
-
-<!-- 🎵 Nhạc nền -->
-<audio id="bgMusic" autoplay loop>
+<audio id="bgMusic" loop>
   <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_7c1c6e6d1b.mp3?filename=romantic-background-110397.mp3" type="audio/mp3">
 </audio>
 
-<!-- Banner -->
-<section class="banner text-center text-white">
-  <h1>🎤 Thi hát Karaoke chào mừng kỷ niệm ngày Quốc tế Phụ nữ 8/3</h1>
-  <p class="lead">Tôn vinh giọng hát – Kết nối yêu thương – Lan tỏa cảm xúc</p>
-  <div id="countdown" class="countdown mt-3"></div>
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">✨ Kỷ niệm ngày Quốc tế Phụ nữ 8/3</div>
+  <h1>🎤 Thi Hát<br><span>Karaoke 8/3</span></h1>
+  <p class="hero-sub">Tôn vinh giọng hát – Kết nối yêu thương – Lan tỏa cảm xúc</p>
+  <div id="countdown">⏳ Đang tải...</div>
+  <div class="scroll-hint">↓ Bình chọn ngay</div>
 </section>
 
-<div class="container py-5">
+<!-- MAIN -->
+<div class="main-wrap">
 
-  <!-- Vote Form -->
-  <div class="card shadow-lg p-4 mb-5">
-    <h4 class="text-center mb-4">Bình chọn ngay</h4>
+  <!-- VOTE CARD -->
+  <div class="card">
+    <div class="card-title">💌 Bình Chọn Của Bạn</div>
 
-    <div class="mb-3">
-      <label class="form-label">Chọn đội</label>
-      <select id="team" class="form-select">
-        <option value="">-- Chọn đội --</option>
-        <option>Đội Hoa Hồng</option>
-        <option>Đội Hướng Dương</option>
-        <option>Đội Tulip</option>
-      </select>
+    <div id="voteFormWrap">
+      <div class="form-group">
+        <label>Chọn đội thi</label>
+        <select id="team"></select>
+      </div>
+      <div class="form-group">
+        <label>Điểm chấm (1 – 10)</label>
+        <input type="number" id="score" min="1" max="10" placeholder="Nhập điểm từ 1 đến 10">
+      </div>
+      <div class="form-group">
+        <label>Tên người bình chọn</label>
+        <input type="text" id="voter" placeholder="Nhập tên của bạn">
+      </div>
+      <button class="btn-vote" id="voteBtn" onclick="submitVote()">🗳️ Gửi Bình Chọn</button>
+      <div id="voteMessage"></div>
     </div>
 
-    <div class="mb-3">
-      <label class="form-label">Điểm (1-10)</label>
-      <input type="number" id="score" class="form-control" min="1" max="10">
+    <div id="votingClosedWrap" style="display:none;">
+      <div class="voting-closed-notice">
+        ⛔ Đã hết thời gian bình chọn. Cảm ơn sự tham gia của bạn!
+      </div>
     </div>
-
-    <div class="mb-3">
-      <label class="form-label">Tên người bình chọn</label>
-      <input type="text" id="voter" class="form-control">
-    </div>
-
-    <button class="btn btn-danger w-100" onclick="submitVote()">Gửi bình chọn</button>
   </div>
 
-  <!-- 🏅 TOP 3 -->
-  <h3 class="text-center mb-4">🏆 Bảng xếp hạng Top 3</h3>
-  <div id="top3" class="row text-center mb-5"></div>
+  <!-- RESULTS (hidden until voting ends) -->
+  <div id="resultsSection">
+    <div class="divider"></div>
 
-  <!-- 📊 Biểu đồ -->
-  <h4 class="text-center mb-3">Biểu đồ điểm trung bình</h4>
-  <canvas id="chart"></canvas>
+    <!-- TOP 3 -->
+    <div class="card">
+      <div class="section-heading">🏆 Bảng Xếp Hạng <span>Top 3</span></div>
+      <div id="top3" class="top3-grid"></div>
+    </div>
+
+    <!-- CHART -->
+    <div class="card">
+      <div class="section-heading">📊 Biểu Đồ <span>Điểm Trung Bình</span></div>
+      <div class="chart-wrap">
+        <canvas id="chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- PENDING (shown while voting is open) -->
+  <div id="pendingMsg">
+    <div class="big-icon">🔒</div>
+    <p>Kết quả sẽ được công bố sau khi bình chọn kết thúc</p>
+  </div>
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="js/config.js"></script>
-<script src="js/main.js"></script>
+<button id="musicToggle" onclick="toggleMusic()" title="Nhạc nền">🎵</button>
 
+<script>
+const API_URL = CONFIG.API_URL;
+const END_TIME = new Date(CONFIG.END_TIME);
+let chart;
+let musicOn = false;
+
+/* ===== MUSIC ===== */
+function toggleMusic() {
+  const audio = document.getElementById("bgMusic");
+  if (musicOn) { audio.pause(); document.getElementById("musicToggle").textContent = "🎵"; }
+  else { audio.play(); document.getElementById("musicToggle").textContent = "⏸️"; }
+  musicOn = !musicOn;
+}
+
+/* ===== TEAMS ===== */
+function populateTeams() {
+  const sel = document.getElementById("team");
+  sel.innerHTML = '<option value="">-- Chọn đội --</option>';
+  CONFIG.TEAMS.forEach(t => {
+    sel.innerHTML += `<option value="${t}">${t}</option>`;
+  });
+}
+
+/* ===== COUNTDOWN ===== */
+function updateCountdown() {
+  const now = new Date();
+  const diff = END_TIME - now;
+  const el = document.getElementById("countdown");
+
+  if (diff <= 0 || !CONFIG.VOTING_ENABLED) {
+    el.innerHTML = "⛔ ĐÃ KẾT THÚC BÌNH CHỌN";
+    el.classList.add("ended");
+    showClosedState();
+    return;
+  }
+
+  const h = Math.floor(diff / (1000*60*60));
+  const m = Math.floor((diff % (1000*60*60)) / (1000*60));
+  const s = Math.floor((diff % (1000*60)) / 1000);
+  el.innerHTML = `⏳ Còn lại: ${String(h).padStart(2,'0')}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
+}
+
+function showClosedState() {
+  // Hide vote form, show closed notice
+  document.getElementById("voteFormWrap").style.display = "none";
+  document.getElementById("votingClosedWrap").style.display = "block";
+  // Show results
+  document.getElementById("resultsSection").style.display = "block";
+  document.getElementById("pendingMsg").style.display = "none";
+  loadResults();
+}
+
+function isVotingOpen() {
+  return CONFIG.VOTING_ENABLED && new Date() < END_TIME;
+}
+
+setInterval(updateCountdown, 1000);
+updateCountdown();
+populateTeams();
+
+/* ===== SUBMIT VOTE ===== */
+function submitVote() {
+  if (!isVotingOpen()) {
+    showClosedState();
+    return;
+  }
+
+  const team = document.getElementById("team").value;
+  const score = Number(document.getElementById("score").value);
+  const voter = document.getElementById("voter").value.trim();
+  const msg = document.getElementById("voteMessage");
+
+  if (!team) { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng chọn đội thi."; return; }
+  if (!score || score < 1 || score > 10) { msg.className="msg-error"; msg.textContent="⚠️ Điểm phải từ 1 đến 10."; return; }
+  if (!voter) { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng nhập tên."; return; }
+
+  const btn = document.getElementById("voteBtn");
+  btn.disabled = true; btn.textContent = "Đang gửi...";
+
+  fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({ team, score, voter })
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false; btn.textContent = "🗳️ Gửi Bình Chọn";
+    if (data.status === "success") {
+      msg.className="msg-success"; msg.textContent="✅ Bình chọn thành công!";
+    } else if (data.status === "duplicate") {
+      msg.className="msg-error"; msg.textContent="⚠️ Bạn đã bình chọn đội này rồi.";
+    } else if (data.status === "closed") {
+      msg.className="msg-error"; msg.textContent="⛔ Đã hết thời gian bình chọn.";
+      showClosedState();
+    } else {
+      msg.className="msg-error"; msg.textContent="❌ Lỗi: " + data.status;
+    }
+  })
+  .catch(() => {
+    btn.disabled = false; btn.textContent = "🗳️ Gửi Bình Chọn";
+    msg.className="msg-error"; msg.textContent="❌ Không kết nối được máy chủ.";
+  });
+}
+
+/* ===== LOAD RESULTS ===== */
+function loadResults() {
+  fetch(API_URL)
+  .then(r => r.json())
+  .then(data => {
+    if (data.status === "ok") {
+      renderTop3(data.data);
+      renderChart(data.data);
+    }
+  });
+}
+
+/* ===== TOP 3 ===== */
+function renderTop3(data) {
+  const teams = Object.keys(data).map(t => ({
+    name: t,
+    avg: parseFloat(data[t].average),
+    votes: data[t].votes
+  })).sort((a, b) => b.avg - a.avg).slice(0, 3);
+
+  const medals = ["🥇", "🥈", "🥉"];
+  const rankClass = ["rank-1", "rank-2", "rank-3"];
+  const container = document.getElementById("top3");
+  container.innerHTML = "";
+
+  teams.forEach((t, i) => {
+    container.innerHTML += `
+      <div class="medal-card ${rankClass[i]}">
+        <span class="medal-emoji">${medals[i]}</span>
+        <div class="medal-name">${t.name}</div>
+        <div class="medal-score">${t.avg.toFixed(1)}</div>
+        <div class="medal-votes">${t.votes} lượt bình chọn</div>
+      </div>`;
+  });
+
+  confetti({ particleCount: 180, spread: 120, origin: { y: 0.55 } });
+}
+
+/* ===== CHART ===== */
+function renderChart(data) {
+  const labels = Object.keys(data);
+  const values = labels.map(l => parseFloat(data[l].average));
+  const ctx = document.getElementById("chart");
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Điểm trung bình",
+        data: values,
+        backgroundColor: labels.map((_, i) => ["#e91e63","#9c27b0","#f59e0b","#10b981","#3b82f6"][i % 5]),
+        borderRadius: 8,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          beginAtZero: true, max: 10,
+          grid: { color: "rgba(0,0,0,0.05)" },
+          ticks: { font: { family: "'Be Vietnam Pro'" } }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { font: { family: "'Be Vietnam Pro'", weight: "600" } }
+        }
+      },
+      animation: { duration: 1500, easing: "easeOutBounce" }
+    }
+  });
+}
+</script>
 </body>
 </html>
