@@ -280,7 +280,7 @@
           <label>Ngày & giờ kết thúc</label>
           <input type="datetime-local" id="endTimeInput">
         </div>
-        <button class="btn-save" onclick="saveEndTime()">Lưu thời gian</button>
+        <button class="btn-save" onclick="saveEndTime(this)">Lưu thời gian</button>
         <span class="save-feedback" id="endTimeFeedback">✅ Đã lưu!</span>
       </div>
 
@@ -290,9 +290,27 @@
         <div id="teamsList"></div>
         <button class="add-team-btn" onclick="addTeam()">＋ Thêm đội</button>
         <div style="margin-top:1.2rem;">
-          <button class="btn-save" onclick="saveTeams()">Lưu danh sách đội</button>
+          <button class="btn-save" onclick="saveTeams(this)">Lưu danh sách đội</button>
           <span class="save-feedback" id="teamsFeedback">✅ Đã lưu!</span>
         </div>
+      </div>
+
+      <!-- DEBUG PANEL -->
+      <div class="card" id="debugCard">
+        <h3>🔧 Kiểm tra kết nối API</h3>
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem;">
+          Bấm nút bên dưới để test xem Apps Script có nhận đúng request không.
+        </p>
+        <button class="btn-save" style="background:linear-gradient(135deg,#0f766e,#0369a1)" onclick="testAPI()">
+          🧪 Test gửi lên API
+        </button>
+        <pre id="debugOutput" style="
+          margin-top:1rem; padding:1rem;
+          background:#0f172a; color:#4ade80;
+          border-radius:10px; font-size:0.8rem;
+          min-height:60px; white-space:pre-wrap;
+          word-break:break-all; display:none;
+        "></pre>
       </div>
     </div>
 
@@ -351,8 +369,10 @@ function initAdmin() {
   loadAllVotes();
   // Wire up toggle AFTER DOM + CONFIG is ready
   document.getElementById("votingEnabledToggle").addEventListener("change", function() {
-    pushSettings({ voting_enabled: String(this.checked) }, null);
-    CONFIG.VOTING_ENABLED = this.checked;
+    const val = this.checked;
+    CONFIG.VOTING_ENABLED = val;
+    // Gửi "true"/"false" dạng string để Apps Script đọc đúng
+    pushSettings({ voting_enabled: val ? "true" : "false" }, null, null);
     loadStatus();
   });
 }
@@ -375,31 +395,95 @@ function loadConfigUI() {
 }
 
 /* ===== PUSH SETTINGS TO GOOGLE SHEET VIA API ===== */
-// payload: object with keys matching Settings sheet (end_time, voting_enabled, teams)
-// feedbackId: optional element id to show "Đã lưu!"
-function pushSettings(payload, feedbackId) {
-  const btn = feedbackId ? document.querySelector(`[onclick*="${feedbackId.replace('Feedback','')}"]`) : null;
-  if (btn) { btn.disabled = true; btn.textContent = "Đang lưu..."; }
+// payload    : object với key khớp cột A trong sheet Settings
+// feedbackId : id của <span class="save-feedback">
+// btnEl      : nút bấm để disable trong lúc gửi
+function pushSettings(payload, feedbackId, btnEl) {
+  const btn = btnEl || null;
+  const originalLabel = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ Đang lưu..."; }
+
+  const body = JSON.stringify({ updateSettings: payload });
+  debugLog("📤 Gửi lên API:
+" + body);
 
   fetch(API_URL, {
     method: "POST",
-    body: JSON.stringify({ updateSettings: payload })
+    body: body
   })
-  .then(r => r.json())
+  .then(r => {
+    if (!r.ok) throw new Error("HTTP " + r.status + " " + r.statusText);
+    return r.json();
+  })
   .then(data => {
-    if (btn) { btn.disabled = false; btn.textContent = btn.getAttribute("data-label") || "Lưu"; }
-    if (feedbackId) {
-      if (data.status === "settings_updated") {
-        showFeedback(feedbackId);
-      } else {
-        alert("Lỗi khi lưu: " + data.status);
-      }
+    if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+    debugLog("📥 Nhận về:
+" + JSON.stringify(data, null, 2));
+
+    if (data.status === "settings_updated") {
+      if (feedbackId) showFeedback(feedbackId);
+    } else {
+      const detail = data.message ? data.status + "\n" + data.message : data.status;
+      alert("❌ Lỗi: " + detail + "\n\n👉 Kiểm tra: đã Deploy lại Apps Script chưa?\n   (Deploy → Manage → Edit → New version → Deploy)");
     }
   })
-  .catch(() => {
-    if (btn) { btn.disabled = false; }
-    if (feedbackId) alert("Không kết nối được máy chủ.");
+  .catch(err => {
+    if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+    debugLog("❌ Fetch error: " + err.message);
+    alert("❌ Không kết nối được.\nChi tiết: " + err.message);
   });
+}
+
+/* ===== TEST API ===== */
+function testAPI() {
+  const out = document.getElementById("debugOutput");
+  out.style.display = "block";
+  out.textContent = "⏳ Đang test...";
+
+  // Test 1: GET
+  fetch(API_URL)
+  .then(r => r.json())
+  .then(data => {
+    out.textContent = "✅ GET thành công!
+
+" + JSON.stringify(data.settings || data, null, 2);
+
+    // Test 2: POST với payload mẫu
+    return fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({ updateSettings: { teams: data.settings && data.settings.teams ? data.settings.teams.join(",") : "test" } })
+    });
+  })
+  .then(r => r.json())
+  .then(data2 => {
+    const out = document.getElementById("debugOutput");
+    out.textContent += "
+
+✅ POST updateSettings:
+" + JSON.stringify(data2, null, 2);
+    if (data2.status === "settings_updated") {
+      out.style.color = "#4ade80";
+    } else {
+      out.style.color = "#f87171";
+      out.textContent += "
+
+⚠️ POST trả về lỗi → Apps Script CHƯA được deploy lại!";
+    }
+  })
+  .catch(err => {
+    document.getElementById("debugOutput").textContent = "❌ Lỗi: " + err.message;
+    document.getElementById("debugOutput").style.color = "#f87171";
+  });
+}
+
+/* ===== DEBUG LOGGER ===== */
+function debugLog(msg) {
+  console.log("[Admin]", msg);
+  const out = document.getElementById("debugOutput");
+  if (out && out.style.display !== "none") {
+    out.textContent += "
+" + msg;
+  }
 }
 
 /* ===== TEAMS =====
@@ -443,7 +527,7 @@ function addTeam() {
   row.querySelector("input").focus();
 }
 
-function saveTeams() {
+function saveTeams(btnEl) {
   // Đọc trực tiếp từ DOM — luôn lấy đúng giá trị hiện tại kể cả sau khi thêm/xoá
   const teams = Array.from(document.querySelectorAll("#teamsList .team-item input"))
     .map(inp => inp.value.trim())
@@ -451,16 +535,18 @@ function saveTeams() {
 
   if (teams.length === 0) { alert("Cần ít nhất 1 đội thi."); return; }
   CONFIG.TEAMS = teams;
-  pushSettings({ teams: teams.join(",") }, "teamsFeedback");
+  // Truyền btnEl để disable nút trong lúc gửi
+  pushSettings({ teams: teams.join(",") }, "teamsFeedback", btnEl);
 }
 
 /* ===== END TIME ===== */
-function saveEndTime() {
+function saveEndTime(btnEl) {
   const val = document.getElementById("endTimeInput").value;
   if (!val) { alert("Vui lòng chọn thời gian."); return; }
-  const endVal = val + ":00"; // add seconds
+  // datetime-local trả về "yyyy-MM-ddTHH:mm" (16 ký tự) — thêm ":00" cho đủ giây
+  const endVal = val.length === 16 ? val + ":00" : val;
   CONFIG.END_TIME = endVal;
-  pushSettings({ end_time: endVal }, "endTimeFeedback");
+  pushSettings({ end_time: endVal }, "endTimeFeedback", btnEl);
   loadStatus();
 }
 
