@@ -7,7 +7,34 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="js/config.js"></script>
+  <script>
+  /* ============================================================
+     CONFIG — nhúng thẳng vào HTML để tránh lỗi 404 trên GitHub Pages
+     Chỉ cần sửa API_URL nếu deploy lại Apps Script
+  ============================================================ */
+  const CONFIG = {
+    API_URL: "https://script.google.com/macros/s/AKfycbzzpaPp6av7Faa92u18nQ5FHw79srrPzlF4uLzo5B4KrnZicaNAxjVnWr1-cT4jRrI/exec",
+    END_TIME: "2026-03-10T23:59:59",
+    TEAMS: ["Đội Hoa Hồng", "Đội Hướng Dương", "Đội Tulip"],
+    VOTING_ENABLED: true
+  };
+
+  // Tải cấu hình mới nhất từ Google Sheet (ghi đè các giá trị trên)
+  CONFIG.loadFromAPI = function(callback) {
+    fetch(CONFIG.API_URL)
+      .then(r => r.json())
+      .then(data => {
+        if (data.settings) {
+          const s = data.settings;
+          if (s.end_time) CONFIG.END_TIME = s.end_time;
+          if (Array.isArray(s.teams) && s.teams.length > 0) CONFIG.TEAMS = s.teams;
+          if (typeof s.voting_enabled === "boolean") CONFIG.VOTING_ENABLED = s.voting_enabled;
+        }
+      })
+      .catch(err => console.warn("[CONFIG] Không tải được settings:", err))
+      .finally(() => { if (callback) callback(); });
+  };
+  </script>
 
   <style>
     :root {
@@ -306,8 +333,12 @@
 </head>
 <body>
 
-<audio id="bgMusic" loop>
-  <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_7c1c6e6d1b.mp3?filename=romantic-background-110397.mp3" type="audio/mp3">
+<!--
+  NHẠC NỀN: Upload file nhạc lên cùng thư mục trên GitHub (vd: nhac.mp3),
+  rồi đổi src="nhac.mp3". Nút 🎵 vẫn hiển thị, chỉ không có tiếng nếu thiếu file.
+-->
+<audio id="bgMusic" loop preload="none">
+  <source src="nhac.mp3" type="audio/mpeg">
 </audio>
 
 <!-- HERO -->
@@ -569,4 +600,3 @@ function renderChart(summary) {
 </script>
 </body>
 </html>
-
