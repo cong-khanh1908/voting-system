@@ -21,3 +21,4 @@ CONFIG.loadFromAPI = function(callback) {
     })
     .catch(() => { if (callback) callback(); });
 };
+
