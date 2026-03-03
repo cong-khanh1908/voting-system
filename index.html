@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Voting System</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+<div class="max-w-4xl mx-auto py-10 px-6">
+
+<h1 class="text-3xl font-bold text-center mb-6">
+HỆ THỐNG BÌNH CHỌN
+</h1>
+
+<div class="text-center mb-4">
+⏳ Kết thúc sau:
+<span id="countdown" class="font-semibold text-red-600"></span>
+</div>
+
+<div class="bg-white shadow-lg rounded-xl p-6 mb-8">
+
+<label class="block mb-2 font-medium">Chọn đội</label>
+<select id="team" class="w-full border rounded-lg p-2 mb-4">
+  ${[...Array(12)].map((_,i)=>`<option value="Team ${i+1}">Team ${i+1}</option>`).join('')}
+</select>
+
+<label class="block mb-2 font-medium">Chấm điểm (1-10)</label>
+<input type="number" id="score" min="1" max="10"
+class="w-full border rounded-lg p-2 mb-4">
+
+<button onclick="vote()"
+class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 w-full">
+BÌNH CHỌN
+</button>
+
+<p id="message" class="mt-4 text-center font-medium"></p>
+
+</div>
+
+<div class="bg-white shadow-lg rounded-xl p-6">
+<h2 class="text-xl font-semibold mb-4">KẾT QUẢ</h2>
+<canvas id="resultChart"></canvas>
+</div>
+
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
