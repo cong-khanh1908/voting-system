@@ -5,15 +5,19 @@ const CONFIG = {
   VOTING_ENABLED: true
 };
 
-// Load admin overrides from localStorage if available
-(function() {
-  try {
-    const saved = localStorage.getItem("adminConfig");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.END_TIME) CONFIG.END_TIME = parsed.END_TIME;
-      if (parsed.TEAMS && parsed.TEAMS.length) CONFIG.TEAMS = parsed.TEAMS;
-      if (typeof parsed.VOTING_ENABLED === "boolean") CONFIG.VOTING_ENABLED = parsed.VOTING_ENABLED;
-    }
-  } catch(e) {}
-})();
+// Loads live settings from the Google Apps Script API.
+// Overwrites CONFIG fields with whatever is stored in the Settings sheet.
+CONFIG.loadFromAPI = function(callback) {
+  fetch(CONFIG.API_URL)
+    .then(r => r.json())
+    .then(data => {
+      if (data.settings) {
+        const s = data.settings;
+        if (s.end_time)  CONFIG.END_TIME = s.end_time;
+        if (s.teams && s.teams.length) CONFIG.TEAMS = s.teams;
+        if (typeof s.voting_enabled === "boolean") CONFIG.VOTING_ENABLED = s.voting_enabled;
+      }
+      if (callback) callback();
+    })
+    .catch(() => { if (callback) callback(); });
+};
