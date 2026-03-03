@@ -175,7 +175,7 @@
       margin-bottom: 0.4rem;
     }
 
-    select, input[type="number"], input[type="text"] {
+    select, input[type="text"] {
       width: 100%;
       padding: 0.75rem 1rem;
       border: 2px solid var(--border);
@@ -191,6 +191,59 @@
       border-color: var(--rose);
       box-shadow: 0 0 0 4px rgba(233,30,99,0.1);
     }
+
+    /* ===== NUMPAD ===== */
+    .score-display {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    .score-value {
+      font-family: 'Playfair Display', serif;
+      font-size: 5rem; font-weight: 900;
+      line-height: 1;
+      color: var(--rose);
+      transition: transform 0.15s, color 0.15s;
+    }
+    .score-value.pulse {
+      transform: scale(1.25);
+      color: var(--purple);
+    }
+    .score-label {
+      font-size: 0.8rem; font-weight: 600;
+      color: var(--text-muted); letter-spacing: 2px;
+      text-transform: uppercase; margin-top: 0.2rem;
+    }
+    .score-stars {
+      font-size: 1.4rem; letter-spacing: 2px;
+      margin-top: 0.4rem; min-height: 1.8rem;
+      transition: all 0.2s;
+    }
+
+    .numpad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.55rem;
+      margin-bottom: 0.5rem;
+    }
+    .numpad-btn {
+      background: #fff;
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem 0;
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem; font-weight: 700;
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.12s;
+      user-select: none;
+      box-shadow: 0 2px 8px rgba(233,30,99,0.06);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .numpad-btn:hover  { background: #fce4ec; border-color: var(--rose); color: var(--rose); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(233,30,99,0.18); }
+    .numpad-btn:active { transform: scale(0.93); background: #f8bbd0; }
+    .numpad-btn.selected { background: linear-gradient(135deg, var(--rose), var(--purple)); border-color: transparent; color: #fff; box-shadow: 0 6px 20px rgba(233,30,99,0.4); transform: translateY(-2px); }
+    .numpad-btn.btn-clear { background: #fef2f2; border-color: #fecaca; color: var(--red); font-size: 1.1rem; font-family: 'Be Vietnam Pro', sans-serif; }
+    .numpad-btn.btn-clear:hover { background: #fee2e2; }
 
     .btn-vote {
       width: 100%;
@@ -358,18 +411,41 @@
     <div class="card-title">💌 Bình Chọn Của Bạn</div>
 
     <div id="voteFormWrap">
+      <!-- Chọn đội -->
       <div class="form-group">
         <label>Chọn đội thi</label>
         <select id="team"></select>
       </div>
+
+      <!-- Bàn phím số chấm điểm -->
       <div class="form-group">
         <label>Điểm chấm (1 – 10)</label>
-        <input type="number" id="score" min="1" max="10" placeholder="Nhập điểm từ 1 đến 10">
+
+        <!-- Hiển thị điểm đã chọn -->
+        <div class="score-display">
+          <div class="score-value" id="scoreDisplay">—</div>
+          <div class="score-label">điểm</div>
+          <div class="score-stars" id="scoreStars"></div>
+        </div>
+
+        <!-- Bàn phím số -->
+        <div class="numpad" id="numpad">
+          <button class="numpad-btn" onclick="selectScore(1)">1</button>
+          <button class="numpad-btn" onclick="selectScore(2)">2</button>
+          <button class="numpad-btn" onclick="selectScore(3)">3</button>
+          <button class="numpad-btn" onclick="selectScore(4)">4</button>
+          <button class="numpad-btn" onclick="selectScore(5)">5</button>
+          <button class="numpad-btn" onclick="selectScore(6)">6</button>
+          <button class="numpad-btn" onclick="selectScore(7)">7</button>
+          <button class="numpad-btn" onclick="selectScore(8)">8</button>
+          <button class="numpad-btn" onclick="selectScore(9)">9</button>
+          <button class="numpad-btn btn-clear" onclick="selectScore(0)" style="grid-column:1/3">✕ Xoá</button>
+          <button class="numpad-btn" onclick="selectScore(10)">10</button>
+        </div>
+        <!-- Hidden input giữ giá trị thực -->
+        <input type="hidden" id="score" value="">
       </div>
-      <div class="form-group">
-        <label>Tên người bình chọn</label>
-        <input type="text" id="voter" placeholder="Nhập tên của bạn">
-      </div>
+
       <button class="btn-vote" id="voteBtn" onclick="submitVote()">🗳️ Gửi Bình Chọn</button>
       <div id="voteMessage"></div>
     </div>
@@ -477,6 +553,46 @@ CONFIG.loadFromAPI(function() {
   if (!isVotingOpen() && !closedStateDone) { closedStateDone = true; showClosedState(); }
 });
 
+/* ===== NUMPAD ===== */
+let currentScore = 0;
+
+function selectScore(val) {
+  const display = document.getElementById("scoreDisplay");
+  const stars   = document.getElementById("scoreStars");
+  const hidden  = document.getElementById("score");
+  const btns    = document.querySelectorAll(".numpad-btn");
+
+  // Clear
+  if (val === 0) {
+    currentScore = 0;
+    display.textContent = "—";
+    stars.textContent   = "";
+    hidden.value        = "";
+    btns.forEach(b => b.classList.remove("selected"));
+    return;
+  }
+
+  currentScore = val;
+  hidden.value = val;
+
+  // Update display with pulse animation
+  display.textContent = val;
+  display.classList.remove("pulse");
+  void display.offsetWidth; // reflow to restart animation
+  display.classList.add("pulse");
+  setTimeout(() => display.classList.remove("pulse"), 200);
+
+  // Stars feedback
+  const filled = "⭐".repeat(Math.min(val, 10));
+  stars.textContent = filled;
+
+  // Highlight selected button
+  btns.forEach(b => {
+    const isMatch = b.textContent.trim() === String(val) && !b.classList.contains("btn-clear");
+    b.classList.toggle("selected", isMatch);
+  });
+}
+
 /* ===== SUBMIT VOTE ===== */
 function submitVote() {
   if (!isVotingOpen()) {
@@ -484,17 +600,20 @@ function submitVote() {
     return;
   }
 
-  const team = document.getElementById("team").value;
+  const team  = document.getElementById("team").value;
   const score = Number(document.getElementById("score").value);
-  const voter = document.getElementById("voter").value.trim();
-  const msg = document.getElementById("voteMessage");
+  const msg   = document.getElementById("voteMessage");
+
+  // Tạo voter ID ẩn từ timestamp + random để phân biệt lượt vote
+  // (không yêu cầu nhập tên nữa)
+  const voter = "anon_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
 
   if (!team)  { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng chọn đội thi."; return; }
-  if (!score || score < 1 || score > 10) { msg.className="msg-error"; msg.textContent="⚠️ Điểm phải từ 1 đến 10."; return; }
-  if (!voter) { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng nhập tên."; return; }
+  if (!score || score < 1 || score > 10) { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng chọn điểm (1–10)."; return; }
 
   const btn = document.getElementById("voteBtn");
   btn.disabled = true; btn.textContent = "Đang gửi...";
+  msg.textContent = "";
 
   fetch(API_URL, {
     method: "POST",
@@ -504,9 +623,13 @@ function submitVote() {
   .then(data => {
     btn.disabled = false; btn.textContent = "🗳️ Gửi Bình Chọn";
     if (data.status === "success") {
-      msg.className="msg-success"; msg.textContent="✅ Bình chọn thành công!";
+      msg.className="msg-success";
+      msg.textContent = "✅ Bình chọn thành công! Cảm ơn bạn 💖";
+      // Reset form sau khi gửi thành công
+      document.getElementById("team").value = "";
+      selectScore(0);
     } else if (data.status === "duplicate") {
-      msg.className="msg-error"; msg.textContent="⚠️ Bạn đã bình chọn đội này rồi.";
+      msg.className="msg-error"; msg.textContent="⚠️ Thiết bị này đã bình chọn rồi.";
     } else if (data.status === "closed" || data.status === "disabled") {
       msg.className="msg-error"; msg.textContent="⛔ Đã hết thời gian bình chọn.";
       if (!closedStateDone) { closedStateDone = true; showClosedState(); }
