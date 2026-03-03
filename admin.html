@@ -404,8 +404,7 @@ function pushSettings(payload, feedbackId, btnEl) {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ Đang lưu..."; }
 
   const body = JSON.stringify({ updateSettings: payload });
-  debugLog("📤 Gửi lên API:
-" + body);
+  debugLog("📤 Gửi lên API:\n" + body);
 
   fetch(API_URL, {
     method: "POST",
@@ -417,8 +416,7 @@ function pushSettings(payload, feedbackId, btnEl) {
   })
   .then(data => {
     if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
-    debugLog("📥 Nhận về:
-" + JSON.stringify(data, null, 2));
+    debugLog("📥 Nhận về:\n" + JSON.stringify(data, null, 2));
 
     if (data.status === "settings_updated") {
       if (feedbackId) showFeedback(feedbackId);
@@ -444,9 +442,7 @@ function testAPI() {
   fetch(API_URL)
   .then(r => r.json())
   .then(data => {
-    out.textContent = "✅ GET thành công!
-
-" + JSON.stringify(data.settings || data, null, 2);
+    out.textContent = "✅ GET thành công!\n\n" + JSON.stringify(data.settings || data, null, 2);
 
     // Test 2: POST với payload mẫu
     return fetch(API_URL, {
@@ -457,17 +453,12 @@ function testAPI() {
   .then(r => r.json())
   .then(data2 => {
     const out = document.getElementById("debugOutput");
-    out.textContent += "
-
-✅ POST updateSettings:
-" + JSON.stringify(data2, null, 2);
+    out.textContent += "\n\n✅ POST updateSettings:\n" + JSON.stringify(data2, null, 2);
     if (data2.status === "settings_updated") {
       out.style.color = "#4ade80";
     } else {
       out.style.color = "#f87171";
-      out.textContent += "
-
-⚠️ POST trả về lỗi → Apps Script CHƯA được deploy lại!";
+      out.textContent += "\n\n⚠️ POST trả về lỗi → Apps Script CHƯA được deploy lại!";
     }
   })
   .catch(err => {
@@ -481,8 +472,7 @@ function debugLog(msg) {
   console.log("[Admin]", msg);
   const out = document.getElementById("debugOutput");
   if (out && out.style.display !== "none") {
-    out.textContent += "
-" + msg;
+    out.textContent += "\n" + msg;
   }
 }
 
