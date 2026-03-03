@@ -1,0 +1,110 @@
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg,#fce4ec,#f3e5f5);
+  overflow-x: hidden;
+}
+
+/* HERO */
+.hero {
+  position: relative;
+  height: 100vh;
+  background: linear-gradient(135deg,#E91E63,#9C27B0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.overlay {
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,0.3);
+}
+
+.hero-content {
+  position:relative;
+  z-index:2;
+}
+
+#countdown {
+  font-size:1.8rem;
+  margin-top:20px;
+  font-weight:600;
+}
+
+/* CARD */
+.card {
+  border-radius:20px;
+  backdrop-filter:blur(10px);
+  background:rgba(255,255,255,0.9);
+  transition:0.4s;
+}
+
+.card:hover {
+  transform:translateY(-10px);
+}
+
+/* BUTTON */
+.btn-pink {
+  background:#E91E63;
+  color:white;
+  border:none;
+}
+
+.btn-pink:hover {
+  background:#c2185b;
+}
+
+/* SECTION TITLE */
+.section-title {
+  font-weight:700;
+  background:linear-gradient(90deg,#E91E63,#9C27B0);
+  -webkit-background-clip:text;
+  color:transparent;
+}
+
+/* MEDALS */
+.medal {
+  font-size:3rem;
+  animation:bounce 1.5s infinite;
+}
+
+.gold { color:gold; }
+.silver { color:silver; }
+.bronze { color:#cd7f32; }
+
+@keyframes bounce {
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-10px)}
+}
+
+/* MUSIC BUTTON */
+.music-btn {
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  background:#E91E63;
+  color:white;
+  border:none;
+  border-radius:50%;
+  width:60px;
+  height:60px;
+  font-size:24px;
+  box-shadow:0 5px 20px rgba(0,0,0,0.3);
+  z-index:999;
+}
+
+/* FLOWERS */
+#flowerCanvas {
+  position:fixed;
+  top:0;
+  left:0;
+  pointer-events:none;
+  z-index:1;
+}
+
+/* FOOTER */
+footer {
+  background:#9C27B0;
+  color:white;
+}
