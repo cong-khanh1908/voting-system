@@ -381,9 +381,10 @@
 
 <script>
 const API_URL = CONFIG.API_URL;
-const END_TIME = new Date(CONFIG.END_TIME);
 let chart;
 let musicOn = false;
+let countdownInterval = null;
+let closedStateDone = false;
 
 /* ===== MUSIC ===== */
 function toggleMusic() {
@@ -403,15 +404,22 @@ function populateTeams() {
 }
 
 /* ===== COUNTDOWN ===== */
+// Always reads CONFIG.END_TIME fresh so it reflects any runtime updates
+function getEndTime() { return new Date(CONFIG.END_TIME); }
+
+function isVotingOpen() {
+  return CONFIG.VOTING_ENABLED && new Date() < getEndTime();
+}
+
 function updateCountdown() {
   const now = new Date();
-  const diff = END_TIME - now;
+  const diff = getEndTime() - now;
   const el = document.getElementById("countdown");
 
-  if (diff <= 0 || !CONFIG.VOTING_ENABLED) {
+  if (!CONFIG.VOTING_ENABLED || diff <= 0) {
     el.innerHTML = "⛔ ĐÃ KẾT THÚC BÌNH CHỌN";
     el.classList.add("ended");
-    showClosedState();
+    if (!closedStateDone) { closedStateDone = true; showClosedState(); }
     return;
   }
 
@@ -422,27 +430,26 @@ function updateCountdown() {
 }
 
 function showClosedState() {
-  // Hide vote form, show closed notice
   document.getElementById("voteFormWrap").style.display = "none";
   document.getElementById("votingClosedWrap").style.display = "block";
-  // Show results
   document.getElementById("resultsSection").style.display = "block";
   document.getElementById("pendingMsg").style.display = "none";
   loadResults();
 }
 
-function isVotingOpen() {
-  return CONFIG.VOTING_ENABLED && new Date() < END_TIME;
-}
-
-setInterval(updateCountdown, 1000);
-updateCountdown();
-populateTeams();
+/* ===== BOOT: fetch live settings, then init UI ===== */
+CONFIG.loadFromAPI(function() {
+  populateTeams();
+  updateCountdown();
+  if (countdownInterval) clearInterval(countdownInterval);
+  countdownInterval = setInterval(updateCountdown, 1000);
+  if (!isVotingOpen() && !closedStateDone) { closedStateDone = true; showClosedState(); }
+});
 
 /* ===== SUBMIT VOTE ===== */
 function submitVote() {
   if (!isVotingOpen()) {
-    showClosedState();
+    if (!closedStateDone) { closedStateDone = true; showClosedState(); }
     return;
   }
 
@@ -451,7 +458,7 @@ function submitVote() {
   const voter = document.getElementById("voter").value.trim();
   const msg = document.getElementById("voteMessage");
 
-  if (!team) { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng chọn đội thi."; return; }
+  if (!team)  { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng chọn đội thi."; return; }
   if (!score || score < 1 || score > 10) { msg.className="msg-error"; msg.textContent="⚠️ Điểm phải từ 1 đến 10."; return; }
   if (!voter) { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng nhập tên."; return; }
 
@@ -469,9 +476,9 @@ function submitVote() {
       msg.className="msg-success"; msg.textContent="✅ Bình chọn thành công!";
     } else if (data.status === "duplicate") {
       msg.className="msg-error"; msg.textContent="⚠️ Bạn đã bình chọn đội này rồi.";
-    } else if (data.status === "closed") {
+    } else if (data.status === "closed" || data.status === "disabled") {
       msg.className="msg-error"; msg.textContent="⛔ Đã hết thời gian bình chọn.";
-      showClosedState();
+      if (!closedStateDone) { closedStateDone = true; showClosedState(); }
     } else {
       msg.className="msg-error"; msg.textContent="❌ Lỗi: " + data.status;
     }
@@ -482,24 +489,27 @@ function submitVote() {
   });
 }
 
-/* ===== LOAD RESULTS ===== */
+/* ===== LOAD RESULTS =====
+   API trả về { status, summary, rows, settings }
+   Dùng data.summary (KHÔNG phải data.data)
+*/
 function loadResults() {
   fetch(API_URL)
   .then(r => r.json())
   .then(data => {
     if (data.status === "ok") {
-      renderTop3(data.data);
-      renderChart(data.data);
+      renderTop3(data.summary);
+      renderChart(data.summary);
     }
   });
 }
 
 /* ===== TOP 3 ===== */
-function renderTop3(data) {
-  const teams = Object.keys(data).map(t => ({
+function renderTop3(summary) {
+  const teams = Object.keys(summary).map(t => ({
     name: t,
-    avg: parseFloat(data[t].average),
-    votes: data[t].votes
+    avg: parseFloat(summary[t].average),
+    votes: summary[t].votes
   })).sort((a, b) => b.avg - a.avg).slice(0, 3);
 
   const medals = ["🥇", "🥈", "🥉"];
@@ -517,13 +527,13 @@ function renderTop3(data) {
       </div>`;
   });
 
-  confetti({ particleCount: 180, spread: 120, origin: { y: 0.55 } });
+  if (teams.length > 0) confetti({ particleCount: 180, spread: 120, origin: { y: 0.55 } });
 }
 
 /* ===== CHART ===== */
-function renderChart(data) {
-  const labels = Object.keys(data);
-  const values = labels.map(l => parseFloat(data[l].average));
+function renderChart(summary) {
+  const labels = Object.keys(summary);
+  const values = labels.map(l => parseFloat(summary[l].average));
   const ctx = document.getElementById("chart");
   if (chart) chart.destroy();
   chart = new Chart(ctx, {
