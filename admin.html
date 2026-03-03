@@ -402,44 +402,56 @@ function pushSettings(payload, feedbackId) {
   });
 }
 
-/* ===== TEAMS ===== */
-let teamsData = [];
+/* ===== TEAMS =====
+   Dùng DOM createElement thay vì innerHTML +=
+   để tránh re-parse, mất sự kiện, lệch index
+   ================================================ */
 
+// Tạo 1 hàng đội thi bằng DOM thuần
+function createTeamRow(value) {
+  const div = document.createElement("div");
+  div.className = "team-item";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = value || "";
+  input.placeholder = "Tên đội";
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "del-btn";
+  btn.textContent = "✕ Xoá";
+  // Xoá đúng hàng này — không cần index, không bao giờ lệch
+  btn.onclick = function() { div.remove(); };
+
+  div.appendChild(input);
+  div.appendChild(btn);
+  return div;
+}
+
+// Render toàn bộ danh sách (chỉ gọi khi load lần đầu)
 function renderTeamsList(teams) {
-  teamsData = teams.slice();
   const container = document.getElementById("teamsList");
   container.innerHTML = "";
-  teamsData.forEach((t, i) => {
-    container.innerHTML += `
-      <div class="team-item">
-        <input type="text" value="${t}" placeholder="Tên đội ${i+1}">
-        <button class="del-btn" onclick="removeTeam(${i})">✕ Xoá</button>
-      </div>`;
-  });
+  (teams || []).forEach(t => container.appendChild(createTeamRow(t)));
 }
 
+// Thêm 1 hàng trống — KHÔNG re-render toàn bộ danh sách
 function addTeam() {
-  // Read current values before adding
-  const inputs = document.querySelectorAll("#teamsList .team-item input");
-  teamsData = Array.from(inputs).map(inp => inp.value.trim());
-  teamsData.push("Đội mới " + (teamsData.length + 1));
-  renderTeamsList(teamsData);
-}
-
-function removeTeam(i) {
-  const inputs = document.querySelectorAll("#teamsList .team-item input");
-  teamsData = Array.from(inputs).map(inp => inp.value.trim());
-  teamsData.splice(i, 1);
-  renderTeamsList(teamsData);
+  const row = createTeamRow("");
+  document.getElementById("teamsList").appendChild(row);
+  row.querySelector("input").focus();
 }
 
 function saveTeams() {
-  const inputs = document.querySelectorAll("#teamsList .team-item input");
-  teamsData = Array.from(inputs).map(inp => inp.value.trim()).filter(Boolean);
-  if (teamsData.length === 0) { alert("Cần ít nhất 1 đội."); return; }
-  CONFIG.TEAMS = teamsData;
-  // Google Sheet stores teams as comma-separated string
-  pushSettings({ teams: teamsData.join(",") }, "teamsFeedback");
+  // Đọc trực tiếp từ DOM — luôn lấy đúng giá trị hiện tại kể cả sau khi thêm/xoá
+  const teams = Array.from(document.querySelectorAll("#teamsList .team-item input"))
+    .map(inp => inp.value.trim())
+    .filter(Boolean);
+
+  if (teams.length === 0) { alert("Cần ít nhất 1 đội thi."); return; }
+  CONFIG.TEAMS = teams;
+  pushSettings({ teams: teams.join(",") }, "teamsFeedback");
 }
 
 /* ===== END TIME ===== */
