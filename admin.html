@@ -317,12 +317,14 @@
 const ADMIN_PASSWORD = "1908";
 const API_URL = CONFIG.API_URL;
 
+/* ===== LOGIN ===== */
 function login() {
   const pass = document.getElementById("passwordInput").value;
   if (pass === ADMIN_PASSWORD) {
     document.getElementById("loginPage").style.display = "none";
     document.getElementById("adminWrap").style.display = "block";
-    initAdmin();
+    // Load live settings from API FIRST, then init UI
+    CONFIG.loadFromAPI(initAdmin);
   } else {
     document.getElementById("loginError").textContent = "❌ Sai mật khẩu!";
   }
@@ -344,18 +346,26 @@ function switchTab(id) {
 
 /* ===== INIT ===== */
 function initAdmin() {
-  loadConfig();
+  loadConfigUI();
   loadStatus();
   loadAllVotes();
+  // Wire up toggle AFTER DOM + CONFIG is ready
+  document.getElementById("votingEnabledToggle").addEventListener("change", function() {
+    pushSettings({ voting_enabled: String(this.checked) }, null);
+    CONFIG.VOTING_ENABLED = this.checked;
+    loadStatus();
+  });
 }
 
-/* ===== LOAD CONFIG ===== */
-function loadConfig() {
-  // End time
-  const dt = new Date(CONFIG.END_TIME);
-  const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000)
-    .toISOString().slice(0, 16);
-  document.getElementById("endTimeInput").value = local;
+/* ===== LOAD CONFIG INTO UI ===== */
+function loadConfigUI() {
+  // End time: convert to datetime-local value
+  try {
+    const dt = new Date(CONFIG.END_TIME);
+    const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000)
+      .toISOString().slice(0, 16);
+    document.getElementById("endTimeInput").value = local;
+  } catch(e) {}
 
   // Toggle
   document.getElementById("votingEnabledToggle").checked = CONFIG.VOTING_ENABLED;
@@ -364,74 +374,82 @@ function loadConfig() {
   renderTeamsList(CONFIG.TEAMS.slice());
 }
 
+/* ===== PUSH SETTINGS TO GOOGLE SHEET VIA API ===== */
+// payload: object with keys matching Settings sheet (end_time, voting_enabled, teams)
+// feedbackId: optional element id to show "Đã lưu!"
+function pushSettings(payload, feedbackId) {
+  const btn = feedbackId ? document.querySelector(`[onclick*="${feedbackId.replace('Feedback','')}"]`) : null;
+  if (btn) { btn.disabled = true; btn.textContent = "Đang lưu..."; }
+
+  fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({ updateSettings: payload })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (btn) { btn.disabled = false; btn.textContent = btn.getAttribute("data-label") || "Lưu"; }
+    if (feedbackId) {
+      if (data.status === "settings_updated") {
+        showFeedback(feedbackId);
+      } else {
+        alert("Lỗi khi lưu: " + data.status);
+      }
+    }
+  })
+  .catch(() => {
+    if (btn) { btn.disabled = false; }
+    if (feedbackId) alert("Không kết nối được máy chủ.");
+  });
+}
+
 /* ===== TEAMS ===== */
 let teamsData = [];
 
 function renderTeamsList(teams) {
-  teamsData = teams;
+  teamsData = teams.slice();
   const container = document.getElementById("teamsList");
   container.innerHTML = "";
   teamsData.forEach((t, i) => {
     container.innerHTML += `
-      <div class="team-item" id="team-row-${i}">
-        <input type="text" value="${t}" oninput="teamsData[${i}]=this.value" placeholder="Tên đội ${i+1}">
+      <div class="team-item">
+        <input type="text" value="${t}" placeholder="Tên đội ${i+1}">
         <button class="del-btn" onclick="removeTeam(${i})">✕ Xoá</button>
       </div>`;
   });
 }
 
 function addTeam() {
-  teamsData.push("Đội mới");
+  // Read current values before adding
+  const inputs = document.querySelectorAll("#teamsList .team-item input");
+  teamsData = Array.from(inputs).map(inp => inp.value.trim());
+  teamsData.push("Đội mới " + (teamsData.length + 1));
   renderTeamsList(teamsData);
 }
 
 function removeTeam(i) {
+  const inputs = document.querySelectorAll("#teamsList .team-item input");
+  teamsData = Array.from(inputs).map(inp => inp.value.trim());
   teamsData.splice(i, 1);
   renderTeamsList(teamsData);
 }
 
 function saveTeams() {
-  // Read current input values
   const inputs = document.querySelectorAll("#teamsList .team-item input");
-  teamsData = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
-
-  const saved = getSavedConfig();
-  saved.TEAMS = teamsData;
-  localStorage.setItem("adminConfig", JSON.stringify(saved));
+  teamsData = Array.from(inputs).map(inp => inp.value.trim()).filter(Boolean);
+  if (teamsData.length === 0) { alert("Cần ít nhất 1 đội."); return; }
   CONFIG.TEAMS = teamsData;
-  showFeedback("teamsFeedback");
+  // Google Sheet stores teams as comma-separated string
+  pushSettings({ teams: teamsData.join(",") }, "teamsFeedback");
 }
 
 /* ===== END TIME ===== */
 function saveEndTime() {
   const val = document.getElementById("endTimeInput").value;
-  if (!val) return;
-  const saved = getSavedConfig();
-  saved.END_TIME = val + ":00";
-  localStorage.setItem("adminConfig", JSON.stringify(saved));
-  CONFIG.END_TIME = val + ":00";
-  showFeedback("endTimeFeedback");
+  if (!val) { alert("Vui lòng chọn thời gian."); return; }
+  const endVal = val + ":00"; // add seconds
+  CONFIG.END_TIME = endVal;
+  pushSettings({ end_time: endVal }, "endTimeFeedback");
   loadStatus();
-}
-
-/* ===== VOTING TOGGLE ===== */
-document.addEventListener("DOMContentLoaded", () => {
-  const toggle = document.getElementById("votingEnabledToggle");
-  if (toggle) {
-    toggle.addEventListener("change", function() {
-      const saved = getSavedConfig();
-      saved.VOTING_ENABLED = this.checked;
-      localStorage.setItem("adminConfig", JSON.stringify(saved));
-      CONFIG.VOTING_ENABLED = this.checked;
-      loadStatus();
-    });
-  }
-});
-
-function getSavedConfig() {
-  try {
-    return JSON.parse(localStorage.getItem("adminConfig") || "{}");
-  } catch(e) { return {}; }
 }
 
 function showFeedback(id) {
@@ -458,12 +476,12 @@ function loadStatus() {
   }
   document.getElementById("statusBadgeWrap").innerHTML = badgeHTML;
 
-  // Load API data
+  // Load API data — API returns data.summary (NOT data.data)
   fetch(API_URL)
   .then(r => r.json())
   .then(data => {
     if (data.status !== "ok") return;
-    const d = data.data;
+    const d = data.summary; // ← correct key
     const teams = Object.keys(d);
     let totalVotes = 0;
     teams.forEach(t => totalVotes += d[t].votes);
@@ -475,7 +493,7 @@ function loadStatus() {
 
     const tbody = document.getElementById("summaryBody");
     tbody.innerHTML = "";
-    teams.sort((a,b) => d[b].average - d[a].average).forEach((t,i) => {
+    teams.sort((a,b) => parseFloat(d[b].average) - parseFloat(d[a].average)).forEach((t,i) => {
       tbody.innerHTML += `
         <tr>
           <td>${["🥇","🥈","🥉"][i] || (i+1)} ${t}</td>
@@ -488,26 +506,32 @@ function loadStatus() {
 }
 
 /* ===== ALL VOTES ===== */
+// API always returns rows in doGet — use the standard endpoint
 function loadAllVotes() {
-  fetch(API_URL + "?raw=1")
+  fetch(API_URL)
   .then(r => r.json())
   .then(data => {
-    if (!data.rows) return;
     const tbody = document.getElementById("voteTable");
+    if (!data.rows || data.rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;padding:1.5rem">Chưa có lượt vote nào</td></tr>';
+      return;
+    }
     tbody.innerHTML = "";
     data.rows.forEach(r => {
+      // r is an object: { time, team, score, voter }
+      const time = r.time ? new Date(r.time).toLocaleString("vi-VN") : "";
       tbody.innerHTML += `
         <tr>
-          <td>${r[0]}</td>
-          <td>${r[1]}</td>
-          <td>${r[2]}</td>
-          <td>${r[3]}</td>
+          <td>${time}</td>
+          <td>${r.team}</td>
+          <td>${r.score}</td>
+          <td>${r.voter}</td>
         </tr>`;
     });
   })
   .catch(() => {
     document.getElementById("voteTable").innerHTML =
-      '<tr><td colspan="4" style="text-align:center;color:#999;padding:1.5rem">Không tải được dữ liệu raw</td></tr>';
+      '<tr><td colspan="4" style="text-align:center;color:#999;padding:1.5rem">Không tải được dữ liệu</td></tr>';
   });
 }
 </script>
