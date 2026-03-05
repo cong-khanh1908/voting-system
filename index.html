@@ -7,19 +7,19 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <script>
   /* ============================================================
-     CONFIG — nhúng thẳng vào HTML để tránh lỗi 404 trên GitHub Pages
-     Chỉ cần sửa API_URL nếu deploy lại Apps Script
+     CONFIG — nhúng thẳng, không cần file ngoài
   ============================================================ */
   const CONFIG = {
     API_URL: "https://script.google.com/macros/s/AKfycbzzpaPp6av7Faa92u18nQ5FHw79srrPzlF4uLzo5B4KrnZicaNAxjVnWr1-cT4jRrI/exec",
     END_TIME: "2026-03-10T23:59:59",
     TEAMS: ["Đội Hoa Hồng", "Đội Hướng Dương", "Đội Tulip"],
-    VOTING_ENABLED: true
+    VOTING_ENABLED: true,
+    RESTRICT_VOTE: false,
+    SORT_MODE: "avg"
   };
-
-  // Tải cấu hình mới nhất từ Google Sheet (ghi đè các giá trị trên)
   CONFIG.loadFromAPI = function(callback) {
     fetch(CONFIG.API_URL)
       .then(r => r.json())
@@ -29,6 +29,8 @@
           if (s.end_time) CONFIG.END_TIME = s.end_time;
           if (Array.isArray(s.teams) && s.teams.length > 0) CONFIG.TEAMS = s.teams;
           if (typeof s.voting_enabled === "boolean") CONFIG.VOTING_ENABLED = s.voting_enabled;
+          if (typeof s.restrict_vote  === "boolean") CONFIG.RESTRICT_VOTE  = s.restrict_vote;
+          if (s.sort_mode) CONFIG.SORT_MODE = s.sort_mode;
         }
       })
       .catch(err => console.warn("[CONFIG] Không tải được settings:", err))
@@ -38,358 +40,114 @@
 
   <style>
     :root {
-      --rose: #e91e63;
-      --rose-dark: #ad1457;
-      --rose-light: #fce4ec;
-      --purple: #7b1fa2;
-      --gold: #f59e0b;
-      --silver: #94a3b8;
-      --bronze: #b45309;
-      --text: #1a0a14;
-      --text-muted: #6b4a5e;
-      --bg: #fff5f8;
-      --card-bg: #ffffff;
-      --border: rgba(233,30,99,0.15);
+      --rose:#e91e63; --rose-dark:#ad1457; --rose-light:#fce4ec;
+      --purple:#7b1fa2; --gold:#f59e0b; --silver:#94a3b8; --bronze:#b45309;
+      --green:#16a34a; --red:#dc2626;
+      --text:#1a0a14; --text-muted:#6b4a5e;
+      --bg:#fff5f8; --card-bg:#ffffff; --border:rgba(233,30,99,0.15);
     }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;}
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    /* ── HERO ── */
+    .hero{min-height:100vh;background:linear-gradient(150deg,#1a0a14 0%,#4a0d2e 40%,#7b1fa2 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2rem;position:relative;overflow:hidden;}
+    .hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(233,30,99,.3) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(123,31,162,.4) 0%,transparent 50%);}
+    .hero-badge{position:relative;z-index:2;display:inline-block;background:rgba(233,30,99,.2);border:1px solid rgba(233,30,99,.5);color:#f48fb1;font-size:.75rem;font-weight:600;letter-spacing:3px;text-transform:uppercase;padding:.4rem 1.2rem;border-radius:100px;margin-bottom:1.5rem;}
+    .hero h1{position:relative;z-index:2;font-family:'Playfair Display',serif;font-size:clamp(2rem,5vw,3.8rem);font-weight:900;color:#fff;line-height:1.15;text-shadow:0 4px 30px rgba(0,0,0,.5);margin-bottom:1rem;}
+    .hero h1 span{color:#f48fb1;}
+    .hero-sub{position:relative;z-index:2;font-size:1.1rem;font-weight:300;color:rgba(255,255,255,.75);max-width:520px;line-height:1.7;margin-bottom:2.5rem;}
+    #countdown{position:relative;z-index:2;display:inline-flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.12);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:1.3rem;font-weight:700;padding:.9rem 2rem;border-radius:60px;letter-spacing:1px;box-shadow:0 8px 32px rgba(0,0,0,.3);}
+    #countdown.ended{background:rgba(233,30,99,.3);border-color:rgba(233,30,99,.6);color:#f48fb1;}
+    .scroll-hint{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);z-index:2;color:rgba(255,255,255,.5);font-size:.8rem;letter-spacing:2px;text-transform:uppercase;animation:fadeUD 2s ease-in-out infinite;}
+    @keyframes fadeUD{0%,100%{opacity:.4;transform:translateX(-50%) translateY(0);}50%{opacity:1;transform:translateX(-50%) translateY(-8px);}}
 
-    body {
-      font-family: 'Be Vietnam Pro', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      overflow-x: hidden;
-    }
+    /* ── MAIN ── */
+    .main-wrap{max-width:800px;margin:0 auto;padding:3rem 1.5rem 5rem;}
 
-    /* ===== HERO ===== */
-    .hero {
-      min-height: 100vh;
-      background: linear-gradient(150deg, #1a0a14 0%, #4a0d2e 40%, #7b1fa2 100%);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      text-align: center; padding: 2rem;
-      position: relative; overflow: hidden;
-    }
+    /* ── CARD ── */
+    .card{background:var(--card-bg);border:1px solid var(--border);border-radius:20px;box-shadow:0 4px 24px rgba(233,30,99,.08);padding:2rem;margin-bottom:2.5rem;}
+    .card-title{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:var(--text);margin-bottom:1.5rem;display:flex;align-items:center;gap:.6rem;}
 
-    .hero::before {
-      content: '';
-      position: absolute; inset: 0;
-      background: radial-gradient(ellipse at 20% 50%, rgba(233,30,99,0.3) 0%, transparent 60%),
-                  radial-gradient(ellipse at 80% 20%, rgba(123,31,162,0.4) 0%, transparent 50%);
-    }
+    /* ── FORM ── */
+    .form-group{margin-bottom:1.2rem;}
+    label{display:block;font-size:.85rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:.4rem;}
+    select,input[type="text"]{width:100%;padding:.75rem 1rem;border:2px solid var(--border);border-radius:10px;font-family:'Be Vietnam Pro',sans-serif;font-size:1rem;color:var(--text);background:#fff;transition:border-color .2s,box-shadow .2s;outline:none;}
+    select:focus,input:focus{border-color:var(--rose);box-shadow:0 0 0 4px rgba(233,30,99,.1);}
 
-    .hero-badge {
-      position: relative; z-index: 2;
-      display: inline-block;
-      background: rgba(233,30,99,0.2);
-      border: 1px solid rgba(233,30,99,0.5);
-      color: #f48fb1;
-      font-size: 0.75rem; font-weight: 600;
-      letter-spacing: 3px; text-transform: uppercase;
-      padding: 0.4rem 1.2rem; border-radius: 100px;
-      margin-bottom: 1.5rem;
-    }
+    /* ── NUMPAD ── */
+    .score-display{text-align:center;margin-bottom:1rem;}
+    .score-value{font-family:'Playfair Display',serif;font-size:5rem;font-weight:900;line-height:1;color:var(--rose);transition:transform .15s,color .15s;}
+    .score-value.pulse{transform:scale(1.25);color:var(--purple);}
+    .score-label{font-size:.8rem;font-weight:600;color:var(--text-muted);letter-spacing:2px;text-transform:uppercase;margin-top:.2rem;}
+    .score-stars{font-size:1.4rem;letter-spacing:2px;margin-top:.4rem;min-height:1.8rem;transition:all .2s;}
+    .numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:.55rem;margin-bottom:.5rem;}
+    .numpad-btn{background:#fff;border:2px solid var(--border);border-radius:14px;padding:1rem 0;font-family:'Playfair Display',serif;font-size:1.8rem;font-weight:700;color:var(--text);cursor:pointer;transition:all .12s;user-select:none;box-shadow:0 2px 8px rgba(233,30,99,.06);-webkit-tap-highlight-color:transparent;}
+    .numpad-btn:hover{background:#fce4ec;border-color:var(--rose);color:var(--rose);transform:translateY(-2px);box-shadow:0 6px 16px rgba(233,30,99,.18);}
+    .numpad-btn:active{transform:scale(.93);background:#f8bbd0;}
+    .numpad-btn.selected{background:linear-gradient(135deg,var(--rose),var(--purple));border-color:transparent;color:#fff;box-shadow:0 6px 20px rgba(233,30,99,.4);transform:translateY(-2px);}
+    .numpad-btn.btn-clear{background:#fef2f2;border-color:#fecaca;color:var(--red);font-size:1.1rem;font-family:'Be Vietnam Pro',sans-serif;}
+    .numpad-btn.btn-clear:hover{background:#fee2e2;}
 
-    .hero h1 {
-      position: relative; z-index: 2;
-      font-family: 'Playfair Display', serif;
-      font-size: clamp(2rem, 5vw, 3.8rem);
-      font-weight: 900; color: #ffffff;
-      line-height: 1.15;
-      text-shadow: 0 4px 30px rgba(0,0,0,0.5);
-      margin-bottom: 1rem;
-    }
+    /* ── VOTE BUTTON ── */
+    .btn-vote{width:100%;padding:1rem;background:linear-gradient(135deg,var(--rose),var(--purple));color:white;border:none;border-radius:12px;cursor:pointer;font-family:'Be Vietnam Pro',sans-serif;font-size:1.05rem;font-weight:700;letter-spacing:.5px;transition:transform .15s,box-shadow .15s;box-shadow:0 6px 20px rgba(233,30,99,.35);}
+    .btn-vote:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(233,30,99,.45);}
+    .btn-vote:active{transform:translateY(0);}
+    .btn-vote:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+    #voteMessage{text-align:center;margin-top:1rem;font-weight:600;font-size:.95rem;min-height:1.5rem;}
+    .msg-success{color:#16a34a;}
+    .msg-error{color:var(--rose);}
 
-    .hero h1 span { color: #f48fb1; }
+    /* ── VOTING CLOSED ── */
+    .voting-closed-notice{background:linear-gradient(135deg,#fce4ec,#f3e5f5);border:2px solid rgba(233,30,99,.3);border-radius:16px;padding:1.5rem;text-align:center;color:var(--text-muted);font-weight:500;font-size:1rem;}
 
-    .hero-sub {
-      position: relative; z-index: 2;
-      font-size: 1.1rem; font-weight: 300;
-      color: rgba(255,255,255,0.75);
-      max-width: 520px; line-height: 1.7;
-      margin-bottom: 2.5rem;
-    }
+    /* ── RESULTS ── */
+    #resultsSection{display:none;}
 
-    #countdown {
-      position: relative; z-index: 2;
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      background: rgba(255,255,255,0.12);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255,255,255,0.2);
-      color: #ffffff;
-      font-size: 1.3rem; font-weight: 700;
-      padding: 0.9rem 2rem; border-radius: 60px;
-      letter-spacing: 1px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-    }
+    /* ── SECTION HEADING ── */
+    .section-heading{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:900;text-align:center;color:var(--text);margin-bottom:1.5rem;}
+    .section-heading span{color:var(--rose);}
 
-    #countdown.ended {
-      background: rgba(233,30,99,0.3);
-      border-color: rgba(233,30,99,0.6);
-      color: #f48fb1;
-    }
+    /* ── TOP 3 ── */
+    .top3-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;}
+    @media(max-width:600px){.top3-grid{grid-template-columns:1fr;}}
+    .medal-card{border-radius:16px;padding:1.5rem;text-align:center;border:2px solid transparent;position:relative;overflow:hidden;transition:transform .3s;}
+    .medal-card:hover{transform:translateY(-5px);}
+    .medal-card.rank-1{background:linear-gradient(135deg,#fef9c3,#fde68a);border-color:var(--gold);box-shadow:0 8px 30px rgba(245,158,11,.3);}
+    .medal-card.rank-2{background:linear-gradient(135deg,#f1f5f9,#e2e8f0);border-color:var(--silver);box-shadow:0 8px 30px rgba(148,163,184,.3);}
+    .medal-card.rank-3{background:linear-gradient(135deg,#fef3c7,#fde68a);border-color:var(--bronze);box-shadow:0 8px 30px rgba(180,83,9,.25);}
+    .medal-emoji{font-size:2.8rem;display:block;margin-bottom:.5rem;animation:bounce 1.8s ease-in-out infinite;}
+    @keyframes bounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
+    .medal-name{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:.4rem;}
+    .medal-score{font-size:1.9rem;font-weight:900;color:var(--rose);line-height:1;}
+    .medal-votes{font-size:.8rem;color:var(--text-muted);font-weight:500;margin-top:.3rem;}
 
-    .scroll-hint {
-      position: absolute; bottom: 2rem; left: 50%;
-      transform: translateX(-50%); z-index: 2;
-      color: rgba(255,255,255,0.5);
-      font-size: 0.8rem; letter-spacing: 2px;
-      text-transform: uppercase;
-      animation: fadeUpDown 2s ease-in-out infinite;
-    }
+    /* ── VOTES RANKING TABLE ── */
+    .votes-rank-table{width:100%;border-collapse:collapse;font-size:.93rem;}
+    .votes-rank-table th{text-align:left;padding:.6rem .8rem;font-size:.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;background:var(--bg);border-bottom:2px solid var(--border);}
+    .votes-rank-table td{padding:.65rem .8rem;border-bottom:1px solid rgba(233,30,99,.07);}
+    .votes-rank-table tr:hover td{background:#fef5f8;}
+    .rank-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--rose-light);color:var(--rose);font-weight:900;font-size:.85rem;}
+    .vote-bar-wrap{background:#fce4ec;border-radius:20px;height:10px;margin-top:4px;}
+    .vote-bar{background:linear-gradient(90deg,var(--rose),var(--purple));border-radius:20px;height:10px;transition:width .6s ease;}
 
-    @keyframes fadeUpDown {
-      0%,100% { opacity:0.4; transform: translateX(-50%) translateY(0); }
-      50% { opacity:1; transform: translateX(-50%) translateY(-8px); }
-    }
+    /* ── CHART ── */
+    .chart-wrap{position:relative;height:280px;}
 
-    /* ===== MAIN ===== */
-    .main-wrap { max-width: 800px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+    /* ── PENDING ── */
+    #pendingMsg{text-align:center;padding:3rem 1rem;color:var(--text-muted);}
+    #pendingMsg .big-icon{font-size:3rem;margin-bottom:.5rem;}
+    #pendingMsg p{font-size:1rem;font-weight:500;}
 
-    /* ===== CARD ===== */
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      box-shadow: 0 4px 24px rgba(233,30,99,0.08);
-      padding: 2rem;
-      margin-bottom: 2.5rem;
-    }
+    /* ── DIVIDER ── */
+    .divider{height:2px;background:linear-gradient(90deg,transparent,var(--rose),transparent);margin:2.5rem 0;}
 
-    .card-title {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.5rem; font-weight: 700;
-      color: var(--text);
-      margin-bottom: 1.5rem;
-      display: flex; align-items: center; gap: 0.6rem;
-    }
-
-    /* ===== FORM ===== */
-    .form-group { margin-bottom: 1.2rem; }
-
-    label {
-      display: block;
-      font-size: 0.85rem; font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase; letter-spacing: 1px;
-      margin-bottom: 0.4rem;
-    }
-
-    select, input[type="text"] {
-      width: 100%;
-      padding: 0.75rem 1rem;
-      border: 2px solid var(--border);
-      border-radius: 10px;
-      font-family: 'Be Vietnam Pro', sans-serif;
-      font-size: 1rem; color: var(--text);
-      background: #fff;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      outline: none;
-    }
-
-    select:focus, input:focus {
-      border-color: var(--rose);
-      box-shadow: 0 0 0 4px rgba(233,30,99,0.1);
-    }
-
-    /* ===== NUMPAD ===== */
-    .score-display {
-      text-align: center;
-      margin-bottom: 1rem;
-    }
-    .score-value {
-      font-family: 'Playfair Display', serif;
-      font-size: 5rem; font-weight: 900;
-      line-height: 1;
-      color: var(--rose);
-      transition: transform 0.15s, color 0.15s;
-    }
-    .score-value.pulse {
-      transform: scale(1.25);
-      color: var(--purple);
-    }
-    .score-label {
-      font-size: 0.8rem; font-weight: 600;
-      color: var(--text-muted); letter-spacing: 2px;
-      text-transform: uppercase; margin-top: 0.2rem;
-    }
-    .score-stars {
-      font-size: 1.4rem; letter-spacing: 2px;
-      margin-top: 0.4rem; min-height: 1.8rem;
-      transition: all 0.2s;
-    }
-
-    .numpad {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 0.55rem;
-      margin-bottom: 0.5rem;
-    }
-    .numpad-btn {
-      background: #fff;
-      border: 2px solid var(--border);
-      border-radius: 14px;
-      padding: 1rem 0;
-      font-family: 'Playfair Display', serif;
-      font-size: 1.8rem; font-weight: 700;
-      color: var(--text);
-      cursor: pointer;
-      transition: all 0.12s;
-      user-select: none;
-      box-shadow: 0 2px 8px rgba(233,30,99,0.06);
-      -webkit-tap-highlight-color: transparent;
-    }
-    .numpad-btn:hover  { background: #fce4ec; border-color: var(--rose); color: var(--rose); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(233,30,99,0.18); }
-    .numpad-btn:active { transform: scale(0.93); background: #f8bbd0; }
-    .numpad-btn.selected { background: linear-gradient(135deg, var(--rose), var(--purple)); border-color: transparent; color: #fff; box-shadow: 0 6px 20px rgba(233,30,99,0.4); transform: translateY(-2px); }
-    .numpad-btn.btn-clear { background: #fef2f2; border-color: #fecaca; color: var(--red); font-size: 1.1rem; font-family: 'Be Vietnam Pro', sans-serif; }
-    .numpad-btn.btn-clear:hover { background: #fee2e2; }
-
-    .btn-vote {
-      width: 100%;
-      padding: 1rem;
-      background: linear-gradient(135deg, var(--rose), var(--purple));
-      color: white; border: none;
-      border-radius: 12px; cursor: pointer;
-      font-family: 'Be Vietnam Pro', sans-serif;
-      font-size: 1.05rem; font-weight: 700;
-      letter-spacing: 0.5px;
-      transition: transform 0.15s, box-shadow 0.15s;
-      box-shadow: 0 6px 20px rgba(233,30,99,0.35);
-    }
-
-    .btn-vote:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(233,30,99,0.45); }
-    .btn-vote:active { transform: translateY(0); }
-    .btn-vote:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-    #voteMessage {
-      text-align: center; margin-top: 1rem;
-      font-weight: 600; font-size: 0.95rem;
-      min-height: 1.5rem;
-    }
-    .msg-success { color: #16a34a; }
-    .msg-error { color: var(--rose); }
-
-    /* ===== VOTING DISABLED ===== */
-    .voting-closed-notice {
-      background: linear-gradient(135deg, #fce4ec, #f3e5f5);
-      border: 2px solid rgba(233,30,99,0.3);
-      border-radius: 16px; padding: 1.5rem;
-      text-align: center; color: var(--text-muted);
-      font-weight: 500; font-size: 1rem;
-    }
-
-    /* ===== RESULTS SECTION ===== */
-    #resultsSection {
-      display: none;
-    }
-
-    /* ===== TOP 3 ===== */
-    .top3-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1rem;
-    }
-
-    @media (max-width: 600px) { .top3-grid { grid-template-columns: 1fr; } }
-
-    .medal-card {
-      border-radius: 16px; padding: 1.5rem;
-      text-align: center;
-      border: 2px solid transparent;
-      position: relative; overflow: hidden;
-      transition: transform 0.3s;
-    }
-    .medal-card:hover { transform: translateY(-5px); }
-
-    .medal-card.rank-1 {
-      background: linear-gradient(135deg, #fef9c3, #fde68a);
-      border-color: var(--gold);
-      box-shadow: 0 8px 30px rgba(245,158,11,0.3);
-    }
-    .medal-card.rank-2 {
-      background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
-      border-color: var(--silver);
-      box-shadow: 0 8px 30px rgba(148,163,184,0.3);
-    }
-    .medal-card.rank-3 {
-      background: linear-gradient(135deg, #fef3c7, #fde68a);
-      border-color: var(--bronze);
-      box-shadow: 0 8px 30px rgba(180,83,9,0.25);
-    }
-
-    .medal-emoji {
-      font-size: 2.8rem;
-      display: block; margin-bottom: 0.5rem;
-      animation: bounce 1.8s ease-in-out infinite;
-    }
-    @keyframes bounce {
-      0%,100% { transform:translateY(0); }
-      50% { transform:translateY(-8px); }
-    }
-
-    .medal-name {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.1rem; font-weight: 700;
-      color: var(--text); margin-bottom: 0.4rem;
-    }
-
-    .medal-score {
-      font-size: 1.9rem; font-weight: 900;
-      color: var(--rose); line-height: 1;
-    }
-
-    .medal-votes {
-      font-size: 0.8rem; color: var(--text-muted);
-      font-weight: 500; margin-top: 0.3rem;
-    }
-
-    /* ===== CHART ===== */
-    .chart-wrap { position: relative; height: 280px; }
-
-    /* ===== PENDING MESSAGE ===== */
-    #pendingMsg {
-      text-align: center; padding: 3rem 1rem;
-      color: var(--text-muted);
-    }
-    #pendingMsg .big-icon { font-size: 3rem; margin-bottom: 0.5rem; }
-    #pendingMsg p { font-size: 1rem; font-weight: 500; }
-
-    /* ===== SECTION HEADING ===== */
-    .section-heading {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.6rem; font-weight: 900;
-      text-align: center; color: var(--text);
-      margin-bottom: 1.5rem;
-    }
-    .section-heading span { color: var(--rose); }
-
-    /* ===== FLOATING MUSIC BTN ===== */
-    #musicToggle {
-      position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 999;
-      width: 52px; height: 52px;
-      background: var(--rose); color: white;
-      border: none; border-radius: 50%; cursor: pointer;
-      font-size: 1.3rem;
-      box-shadow: 0 6px 20px rgba(233,30,99,0.4);
-      transition: transform 0.2s;
-    }
-    #musicToggle:hover { transform: scale(1.1); }
-
-    /* ===== DIVIDER ===== */
-    .divider {
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--rose), transparent);
-      margin: 2.5rem 0;
-    }
+    /* ── MUSIC BTN ── */
+    #musicToggle{position:fixed;bottom:1.5rem;right:1.5rem;z-index:999;width:52px;height:52px;background:var(--rose);color:white;border:none;border-radius:50%;cursor:pointer;font-size:1.3rem;box-shadow:0 6px 20px rgba(233,30,99,.4);transition:transform .2s;}
+    #musicToggle:hover{transform:scale(1.1);}
   </style>
 </head>
 <body>
 
-<!--
-  NHẠC NỀN: Upload file nhạc lên cùng thư mục trên GitHub (vd: nhac.mp3),
-  rồi đổi src="nhac.mp3". Nút 🎵 vẫn hiển thị, chỉ không có tiếng nếu thiếu file.
--->
 <audio id="bgMusic" loop preload="none">
   <source src="nhac.mp3" type="audio/mpeg">
 </audio>
@@ -411,25 +169,19 @@
     <div class="card-title">💌 Bình Chọn Của Bạn</div>
 
     <div id="voteFormWrap">
-      <!-- Chọn đội -->
       <div class="form-group">
         <label>Chọn đội thi</label>
         <select id="team"></select>
       </div>
 
-      <!-- Bàn phím số chấm điểm -->
       <div class="form-group">
         <label>Điểm chấm (1 – 10)</label>
-
-        <!-- Hiển thị điểm đã chọn -->
         <div class="score-display">
           <div class="score-value" id="scoreDisplay">—</div>
           <div class="score-label">điểm</div>
           <div class="score-stars" id="scoreStars"></div>
         </div>
-
-        <!-- Bàn phím số -->
-        <div class="numpad" id="numpad">
+        <div class="numpad">
           <button class="numpad-btn" onclick="selectScore(1)">1</button>
           <button class="numpad-btn" onclick="selectScore(2)">2</button>
           <button class="numpad-btn" onclick="selectScore(3)">3</button>
@@ -442,7 +194,6 @@
           <button class="numpad-btn btn-clear" onclick="selectScore(0)" style="grid-column:1/3">✕ Xoá</button>
           <button class="numpad-btn" onclick="selectScore(10)">10</button>
         </div>
-        <!-- Hidden input giữ giá trị thực -->
         <input type="hidden" id="score" value="">
       </div>
 
@@ -461,10 +212,21 @@
   <div id="resultsSection">
     <div class="divider"></div>
 
-    <!-- TOP 3 -->
+    <!-- TOP 3 (by avg score) -->
     <div class="card">
-      <div class="section-heading">🏆 Bảng Xếp Hạng <span>Top 3</span></div>
+      <div class="section-heading">🏆 Bảng Xếp Hạng <span>Top 3 Điểm TB</span></div>
       <div id="top3" class="top3-grid"></div>
+    </div>
+
+    <!-- VOTES RANKING (by vote count) -->
+    <div class="card">
+      <div class="section-heading">🗳️ Xếp Hạng <span>Theo Lượt Vote</span></div>
+      <div class="table-wrap">
+        <table class="votes-rank-table">
+          <thead><tr><th>#</th><th>Đội thi</th><th>Lượt vote</th><th>Điểm TB</th></tr></thead>
+          <tbody id="votesRankBody"></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- CHART -->
@@ -493,46 +255,41 @@ let musicOn = false;
 let countdownInterval = null;
 let closedStateDone = false;
 
-/* ===== MUSIC ===== */
+/* ── MUSIC ── */
 function toggleMusic() {
-  const audio = document.getElementById("bgMusic");
-  if (musicOn) { audio.pause(); document.getElementById("musicToggle").textContent = "🎵"; }
-  else { audio.play(); document.getElementById("musicToggle").textContent = "⏸️"; }
+  const a = document.getElementById("bgMusic");
+  musicOn ? a.pause() : a.play();
   musicOn = !musicOn;
+  document.getElementById("musicToggle").textContent = musicOn ? "⏸️" : "🎵";
 }
 
-/* ===== TEAMS ===== */
+/* ── TEAMS ── */
 function populateTeams() {
   const sel = document.getElementById("team");
   sel.innerHTML = '<option value="">-- Chọn đội --</option>';
+  if (!CONFIG.TEAMS || !CONFIG.TEAMS.length) {
+    sel.innerHTML += '<option disabled>⚠️ Chưa cấu hình đội thi</option>';
+    return;
+  }
   CONFIG.TEAMS.forEach(t => {
-    sel.innerHTML += `<option value="${t}">${t}</option>`;
+    const o = document.createElement("option");
+    o.value = t; o.textContent = t; sel.appendChild(o);
   });
 }
 
-/* ===== COUNTDOWN ===== */
-// Always reads CONFIG.END_TIME fresh so it reflects any runtime updates
+/* ── COUNTDOWN ── */
 function getEndTime() { return new Date(CONFIG.END_TIME); }
-
-function isVotingOpen() {
-  return CONFIG.VOTING_ENABLED && new Date() < getEndTime();
-}
+function isVotingOpen() { return CONFIG.VOTING_ENABLED && new Date() < getEndTime(); }
 
 function updateCountdown() {
-  const now = new Date();
-  const diff = getEndTime() - now;
+  const diff = getEndTime() - new Date();
   const el = document.getElementById("countdown");
-
   if (!CONFIG.VOTING_ENABLED || diff <= 0) {
-    el.innerHTML = "⛔ ĐÃ KẾT THÚC BÌNH CHỌN";
-    el.classList.add("ended");
+    el.innerHTML = "⛔ ĐÃ KẾT THÚC BÌNH CHỌN"; el.classList.add("ended");
     if (!closedStateDone) { closedStateDone = true; showClosedState(); }
     return;
   }
-
-  const h = Math.floor(diff / (1000*60*60));
-  const m = Math.floor((diff % (1000*60*60)) / (1000*60));
-  const s = Math.floor((diff % (1000*60)) / 1000);
+  const h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000), s = Math.floor((diff%60000)/1000);
   el.innerHTML = `⏳ Còn lại: ${String(h).padStart(2,'0')}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
 }
 
@@ -544,7 +301,7 @@ function showClosedState() {
   loadResults();
 }
 
-/* ===== BOOT: fetch live settings, then init UI ===== */
+/* ── BOOT ── */
 CONFIG.loadFromAPI(function() {
   populateTeams();
   updateCountdown();
@@ -553,7 +310,7 @@ CONFIG.loadFromAPI(function() {
   if (!isVotingOpen() && !closedStateDone) { closedStateDone = true; showClosedState(); }
 });
 
-/* ===== NUMPAD ===== */
+/* ── NUMPAD ── */
 let currentScore = 0;
 
 function selectScore(val) {
@@ -562,38 +319,29 @@ function selectScore(val) {
   const hidden  = document.getElementById("score");
   const btns    = document.querySelectorAll(".numpad-btn");
 
-  // Clear
   if (val === 0) {
-    currentScore = 0;
-    display.textContent = "—";
-    stars.textContent   = "";
-    hidden.value        = "";
+    currentScore = 0; hidden.value = "";
+    display.textContent = "—"; stars.textContent = "";
     btns.forEach(b => b.classList.remove("selected"));
     return;
   }
 
-  currentScore = val;
-  hidden.value = val;
-
-  // Update display with pulse animation
+  currentScore = val; hidden.value = val;
   display.textContent = val;
   display.classList.remove("pulse");
-  void display.offsetWidth; // reflow to restart animation
+  void display.offsetWidth;
   display.classList.add("pulse");
   setTimeout(() => display.classList.remove("pulse"), 200);
 
-  // Stars feedback
-  const filled = "⭐".repeat(Math.min(val, 10));
-  stars.textContent = filled;
+  stars.textContent = "⭐".repeat(Math.min(val, 10));
 
-  // Highlight selected button
   btns.forEach(b => {
-    const isMatch = b.textContent.trim() === String(val) && !b.classList.contains("btn-clear");
-    b.classList.toggle("selected", isMatch);
+    b.classList.toggle("selected",
+      b.textContent.trim() === String(val) && !b.classList.contains("btn-clear"));
   });
 }
 
-/* ===== SUBMIT VOTE ===== */
+/* ── SUBMIT VOTE ── */
 function submitVote() {
   if (!isVotingOpen()) {
     if (!closedStateDone) { closedStateDone = true; showClosedState(); }
@@ -604,76 +352,82 @@ function submitVote() {
   const score = Number(document.getElementById("score").value);
   const msg   = document.getElementById("voteMessage");
 
-  // Tạo voter ID ẩn từ timestamp + random để phân biệt lượt vote
-  // (không yêu cầu nhập tên nữa)
-  const voter = "anon_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
-
   if (!team)  { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng chọn đội thi."; return; }
   if (!score || score < 1 || score > 10) { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng chọn điểm (1–10)."; return; }
 
-  const btn = document.getElementById("voteBtn");
-  btn.disabled = true; btn.textContent = "Đang gửi...";
-  msg.textContent = "";
-
-  fetch(API_URL, {
-    method: "POST",
-    body: JSON.stringify({ team, score, voter })
-  })
-  .then(r => r.json())
-  .then(data => {
-    btn.disabled = false; btn.textContent = "🗳️ Gửi Bình Chọn";
-    if (data.status === "success") {
-      msg.className="msg-success";
-      msg.textContent = "✅ Bình chọn thành công! Cảm ơn bạn 💖";
-      // Reset form sau khi gửi thành công
-      document.getElementById("team").value = "";
-      selectScore(0);
-    } else if (data.status === "duplicate") {
-      msg.className="msg-error"; msg.textContent="⚠️ Thiết bị này đã bình chọn rồi.";
-    } else if (data.status === "closed" || data.status === "disabled") {
-      msg.className="msg-error"; msg.textContent="⛔ Đã hết thời gian bình chọn.";
-      if (!closedStateDone) { closedStateDone = true; showClosedState(); }
-    } else {
-      msg.className="msg-error"; msg.textContent="❌ Lỗi: " + data.status;
+  // Tạo voter ID
+  // Nếu restrict_vote=true → dùng deviceID cố định lưu localStorage để chặn vote trùng
+  // Nếu restrict_vote=false → tạo ID ngẫu nhiên mỗi lần (tự do)
+  let voter;
+  if (CONFIG.RESTRICT_VOTE) {
+    const KEY = "karaoke_voter_id";
+    if (!localStorage.getItem(KEY)) {
+      localStorage.setItem(KEY, "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2,7));
     }
-  })
-  .catch(() => {
-    btn.disabled = false; btn.textContent = "🗳️ Gửi Bình Chọn";
-    msg.className="msg-error"; msg.textContent="❌ Không kết nối được máy chủ.";
-  });
+    voter = localStorage.getItem(KEY);
+  } else {
+    voter = "anon_" + Date.now() + "_" + Math.random().toString(36).slice(2,7);
+  }
+
+  const btn = document.getElementById("voteBtn");
+  btn.disabled = true; btn.textContent = "Đang gửi..."; msg.textContent = "";
+
+  fetch(API_URL, { method: "POST", body: JSON.stringify({ team, score, voter }) })
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false; btn.textContent = "🗳️ Gửi Bình Chọn";
+      if (data.status === "success") {
+        msg.className = "msg-success";
+        msg.textContent = "✅ Bình chọn thành công! Cảm ơn bạn 💖";
+        document.getElementById("team").value = "";
+        selectScore(0);
+      } else if (data.status === "duplicate") {
+        msg.className = "msg-error";
+        msg.textContent = CONFIG.RESTRICT_VOTE
+          ? "⚠️ Thiết bị này đã bình chọn rồi."
+          : "⚠️ Đã bình chọn trùng.";
+      } else if (data.status === "closed" || data.status === "disabled") {
+        msg.className = "msg-error"; msg.textContent = "⛔ Đã hết thời gian bình chọn.";
+        if (!closedStateDone) { closedStateDone = true; showClosedState(); }
+      } else {
+        msg.className = "msg-error"; msg.textContent = "❌ Lỗi: " + data.status;
+      }
+    })
+    .catch(() => {
+      btn.disabled = false; btn.textContent = "🗳️ Gửi Bình Chọn";
+      msg.className = "msg-error"; msg.textContent = "❌ Không kết nối được máy chủ.";
+    });
 }
 
-/* ===== LOAD RESULTS =====
-   API trả về { status, summary, rows, settings }
-   Dùng data.summary (KHÔNG phải data.data)
-*/
+/* ── LOAD RESULTS ── */
 function loadResults() {
   fetch(API_URL)
-  .then(r => r.json())
-  .then(data => {
-    if (data.status === "ok") {
-      renderTop3(data.summary);
-      renderChart(data.summary);
-    }
-  });
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === "ok") {
+        // Sync sort mode from API settings if available
+        if (data.settings && data.settings.sort_mode) CONFIG.SORT_MODE = data.settings.sort_mode;
+        renderTop3(data.summary);
+        renderVotesRanking(data.summary);
+        renderChart(data.summary);
+      }
+    });
 }
 
-/* ===== TOP 3 ===== */
+/* ── TOP 3 (by avg score) ── */
 function renderTop3(summary) {
   const teams = Object.keys(summary).map(t => ({
-    name: t,
-    avg: parseFloat(summary[t].average),
-    votes: summary[t].votes
+    name: t, avg: parseFloat(summary[t].average), votes: summary[t].votes
   })).sort((a, b) => b.avg - a.avg).slice(0, 3);
 
-  const medals = ["🥇", "🥈", "🥉"];
-  const rankClass = ["rank-1", "rank-2", "rank-3"];
+  const medals = ["🥇","🥈","🥉"];
+  const rankCls = ["rank-1","rank-2","rank-3"];
   const container = document.getElementById("top3");
   container.innerHTML = "";
 
   teams.forEach((t, i) => {
     container.innerHTML += `
-      <div class="medal-card ${rankClass[i]}">
+      <div class="medal-card ${rankCls[i]}">
         <span class="medal-emoji">${medals[i]}</span>
         <div class="medal-name">${t.name}</div>
         <div class="medal-score">${t.avg.toFixed(1)}</div>
@@ -684,10 +438,48 @@ function renderTop3(summary) {
   if (teams.length > 0) confetti({ particleCount: 180, spread: 120, origin: { y: 0.55 } });
 }
 
-/* ===== CHART ===== */
+/* ── VOTES RANKING (by vote count) ── */
+function renderVotesRanking(summary) {
+  // Sort by vote count (high → low), tie-break by avg
+  const teams = Object.keys(summary).map(t => ({
+    name: t, avg: parseFloat(summary[t].average), votes: summary[t].votes
+  })).sort((a, b) => b.votes - a.votes || b.avg - a.avg);
+
+  const maxVotes = teams[0] ? teams[0].votes : 1;
+  const ranks = ["🥇","🥈","🥉"];
+  const tbody = document.getElementById("votesRankBody");
+  tbody.innerHTML = "";
+
+  teams.forEach((t, i) => {
+    const pct = maxVotes > 0 ? Math.round((t.votes / maxVotes) * 100) : 0;
+    const badge = ranks[i] || `<span class="rank-badge">${i+1}</span>`;
+    tbody.innerHTML += `
+      <tr>
+        <td>${badge}</td>
+        <td><strong>${t.name}</strong></td>
+        <td>
+          <div style="font-weight:700;font-size:1rem;color:var(--rose)">${t.votes}</div>
+          <div class="vote-bar-wrap"><div class="vote-bar" style="width:${pct}%"></div></div>
+        </td>
+        <td style="color:var(--text-muted)">${t.avg.toFixed(2)}</td>
+      </tr>`;
+  });
+}
+
+/* ── CHART ── */
 function renderChart(summary) {
-  const labels = Object.keys(summary);
-  const values = labels.map(l => parseFloat(summary[l].average));
+  // Sort chart by SORT_MODE from admin config
+  const entries = Object.keys(summary).map(t => ({
+    name: t, avg: parseFloat(summary[t].average), votes: summary[t].votes
+  }));
+
+  if (CONFIG.SORT_MODE === "votes") entries.sort((a,b) => b.votes - a.votes);
+  else entries.sort((a,b) => b.avg - a.avg);
+
+  const labels = entries.map(e => e.name);
+  const values = entries.map(e => e.avg);
+  const colors = ["#e91e63","#9c27b0","#f59e0b","#10b981","#3b82f6"];
+
   const ctx = document.getElementById("chart");
   if (chart) chart.destroy();
   chart = new Chart(ctx, {
@@ -697,26 +489,18 @@ function renderChart(summary) {
       datasets: [{
         label: "Điểm trung bình",
         data: values,
-        backgroundColor: labels.map((_, i) => ["#e91e63","#9c27b0","#f59e0b","#10b981","#3b82f6"][i % 5]),
-        borderRadius: 8,
-        borderSkipped: false
+        backgroundColor: labels.map((_,i) => colors[i % colors.length]),
+        borderRadius: 8, borderSkipped: false
       }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        y: {
-          beginAtZero: true, max: 10,
-          grid: { color: "rgba(0,0,0,0.05)" },
-          ticks: { font: { family: "'Be Vietnam Pro'" } }
-        },
-        x: {
-          grid: { display: false },
-          ticks: { font: { family: "'Be Vietnam Pro'", weight: "600" } }
-        }
+        y: { beginAtZero:true, max:10, grid:{ color:"rgba(0,0,0,.05)" }, ticks:{ font:{ family:"'Be Vietnam Pro'" } } },
+        x: { grid:{ display:false }, ticks:{ font:{ family:"'Be Vietnam Pro'", weight:"600" } } }
       },
-      animation: { duration: 1500, easing: "easeOutBounce" }
+      animation: { duration:1500, easing:"easeOutBounce" }
     }
   });
 }
