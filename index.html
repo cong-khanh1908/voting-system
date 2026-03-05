@@ -4,14 +4,16 @@
   <meta charset="UTF-8">
   <title>🎤 Thi Hát Karaoke 8/3</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- preconnect giảm latency font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Be+Vietnam+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <!-- defer: không block render -->
+  <script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
   <script>
-  /* ============================================================
-     CONFIG — nhúng thẳng, không cần file ngoài
-  ============================================================ */
+  /* ── CONFIG (nhúng thẳng, không cần file ngoài) ── */
   const CONFIG = {
     API_URL: "https://script.google.com/macros/s/AKfycbzzpaPp6av7Faa92u18nQ5FHw79srrPzlF4uLzo5B4KrnZicaNAxjVnWr1-cT4jRrI/exec",
     END_TIME: "2026-03-10T23:59:59",
@@ -20,129 +22,243 @@
     RESTRICT_VOTE: false,
     SORT_MODE: "avg"
   };
+
+  /* Parse bool từ Google Sheet (trả về "TRUE"/"FALSE"/true/false) */
+  function parseBool(v) {
+    return typeof v === "boolean" ? v : String(v).toLowerCase() === "true";
+  }
+
+  /* Tải settings + data trong 1 fetch duy nhất, trả về Promise<data> */
   CONFIG.loadFromAPI = function(callback) {
     fetch(CONFIG.API_URL)
       .then(r => r.json())
       .then(data => {
-        if (data.settings) {
-          const s = data.settings;
+        const s = data.settings;
+        if (s) {
           if (s.end_time) CONFIG.END_TIME = s.end_time;
-          if (Array.isArray(s.teams) && s.teams.length > 0) CONFIG.TEAMS = s.teams;
-          if (typeof s.voting_enabled === "boolean") CONFIG.VOTING_ENABLED = s.voting_enabled;
-          if (typeof s.restrict_vote  === "boolean") CONFIG.RESTRICT_VOTE  = s.restrict_vote;
+          if (Array.isArray(s.teams) && s.teams.length) CONFIG.TEAMS = s.teams;
+          if (s.voting_enabled !== undefined) CONFIG.VOTING_ENABLED = parseBool(s.voting_enabled);
+          if (s.restrict_vote  !== undefined) CONFIG.RESTRICT_VOTE  = parseBool(s.restrict_vote);
           if (s.sort_mode) CONFIG.SORT_MODE = s.sort_mode;
         }
+        // Trả cả data để loadResults dùng lại, tránh gọi API lần 2
+        if (callback) callback(data);
       })
-      .catch(err => console.warn("[CONFIG] Không tải được settings:", err))
-      .finally(() => { if (callback) callback(); });
+      .catch(err => {
+        console.warn("[CONFIG]", err);
+        if (callback) callback(null);
+      });
   };
   </script>
 
   <style>
-    :root {
-      --rose:#e91e63; --rose-dark:#ad1457; --rose-light:#fce4ec;
-      --purple:#7b1fa2; --gold:#f59e0b; --silver:#94a3b8; --bronze:#b45309;
-      --green:#16a34a; --red:#dc2626;
-      --text:#1a0a14; --text-muted:#6b4a5e;
-      --bg:#fff5f8; --card-bg:#ffffff; --border:rgba(233,30,99,0.15);
+    :root{
+      --rose:#e91e63;--rose-light:#fce4ec;--purple:#7b1fa2;
+      --gold:#f59e0b;--silver:#94a3b8;--bronze:#b45309;
+      --green:#16a34a;--red:#dc2626;
+      --text:#1a0a14;--text-muted:#6b4a5e;
+      --bg:#fff5f8;--card:#fff;--border:rgba(233,30,99,.15);
     }
     *{margin:0;padding:0;box-sizing:border-box;}
     body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;}
 
     /* ── HERO ── */
-    .hero{min-height:100vh;background:linear-gradient(150deg,#1a0a14 0%,#4a0d2e 40%,#7b1fa2 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2rem;position:relative;overflow:hidden;}
-    .hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(233,30,99,.3) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(123,31,162,.4) 0%,transparent 50%);}
-    .hero-badge{position:relative;z-index:2;display:inline-block;background:rgba(233,30,99,.2);border:1px solid rgba(233,30,99,.5);color:#f48fb1;font-size:.75rem;font-weight:600;letter-spacing:3px;text-transform:uppercase;padding:.4rem 1.2rem;border-radius:100px;margin-bottom:1.5rem;}
-    .hero h1{position:relative;z-index:2;font-family:'Playfair Display',serif;font-size:clamp(2rem,5vw,3.8rem);font-weight:900;color:#fff;line-height:1.15;text-shadow:0 4px 30px rgba(0,0,0,.5);margin-bottom:1rem;}
+    .hero{
+      min-height:100vh;
+      background:linear-gradient(150deg,#1a0a14 0%,#4a0d2e 40%,#7b1fa2 100%);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      text-align:center;padding:2rem;position:relative;overflow:hidden;
+    }
+    /* Dùng pseudo thay vì 2 radial-gradient trên body → giảm repaint */
+    .hero::before{
+      content:'';position:absolute;inset:0;
+      background:
+        radial-gradient(ellipse at 20% 50%,rgba(233,30,99,.25) 0%,transparent 55%),
+        radial-gradient(ellipse at 80% 20%,rgba(123,31,162,.3) 0%,transparent 50%);
+      pointer-events:none;
+    }
+    .hero-badge{
+      position:relative;z-index:2;display:inline-block;
+      background:rgba(233,30,99,.2);border:1px solid rgba(233,30,99,.5);
+      color:#f48fb1;font-size:.75rem;font-weight:600;letter-spacing:3px;
+      text-transform:uppercase;padding:.4rem 1.2rem;border-radius:100px;margin-bottom:1.5rem;
+    }
+    .hero h1{
+      position:relative;z-index:2;font-family:'Playfair Display',serif;
+      font-size:clamp(2rem,5vw,3.8rem);font-weight:900;color:#fff;
+      line-height:1.15;text-shadow:0 4px 24px rgba(0,0,0,.5);margin-bottom:1rem;
+    }
     .hero h1 span{color:#f48fb1;}
-    .hero-sub{position:relative;z-index:2;font-size:1.1rem;font-weight:300;color:rgba(255,255,255,.75);max-width:520px;line-height:1.7;margin-bottom:2.5rem;}
-    #countdown{position:relative;z-index:2;display:inline-flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.12);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:1.3rem;font-weight:700;padding:.9rem 2rem;border-radius:60px;letter-spacing:1px;box-shadow:0 8px 32px rgba(0,0,0,.3);}
+    .hero-sub{
+      position:relative;z-index:2;font-size:1.05rem;font-weight:300;
+      color:rgba(255,255,255,.75);max-width:520px;line-height:1.7;margin-bottom:2.5rem;
+    }
+    /* Bỏ backdrop-filter (nặng trên mobile) → dùng solid semi-transparent */
+    #countdown{
+      position:relative;z-index:2;display:inline-flex;align-items:center;gap:.5rem;
+      background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);
+      color:#fff;font-size:1.25rem;font-weight:700;
+      padding:.85rem 1.8rem;border-radius:60px;letter-spacing:1px;
+      box-shadow:0 6px 24px rgba(0,0,0,.25);
+    }
     #countdown.ended{background:rgba(233,30,99,.3);border-color:rgba(233,30,99,.6);color:#f48fb1;}
-    .scroll-hint{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);z-index:2;color:rgba(255,255,255,.5);font-size:.8rem;letter-spacing:2px;text-transform:uppercase;animation:fadeUD 2s ease-in-out infinite;}
-    @keyframes fadeUD{0%,100%{opacity:.4;transform:translateX(-50%) translateY(0);}50%{opacity:1;transform:translateX(-50%) translateY(-8px);}}
+    .scroll-hint{
+      position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);z-index:2;
+      color:rgba(255,255,255,.45);font-size:.78rem;letter-spacing:2px;text-transform:uppercase;
+      animation:fadeUD 2.2s ease-in-out infinite;
+    }
+    @keyframes fadeUD{
+      0%,100%{opacity:.35;transform:translateX(-50%) translateY(0);}
+      50%{opacity:.9;transform:translateX(-50%) translateY(-7px);}
+    }
 
     /* ── MAIN ── */
-    .main-wrap{max-width:800px;margin:0 auto;padding:3rem 1.5rem 5rem;}
+    .main-wrap{max-width:800px;margin:0 auto;padding:3rem 1.2rem 5rem;}
 
     /* ── CARD ── */
-    .card{background:var(--card-bg);border:1px solid var(--border);border-radius:20px;box-shadow:0 4px 24px rgba(233,30,99,.08);padding:2rem;margin-bottom:2.5rem;}
-    .card-title{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:var(--text);margin-bottom:1.5rem;display:flex;align-items:center;gap:.6rem;}
+    .card{
+      background:var(--card);border:1px solid var(--border);
+      border-radius:20px;box-shadow:0 4px 20px rgba(233,30,99,.07);
+      padding:2rem;margin-bottom:2.5rem;
+    }
+    .card-title{
+      font-family:'Playfair Display',serif;font-size:1.45rem;font-weight:700;
+      color:var(--text);margin-bottom:1.5rem;display:flex;align-items:center;gap:.6rem;
+    }
 
     /* ── FORM ── */
     .form-group{margin-bottom:1.2rem;}
-    label{display:block;font-size:.85rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:.4rem;}
-    select,input[type="text"]{width:100%;padding:.75rem 1rem;border:2px solid var(--border);border-radius:10px;font-family:'Be Vietnam Pro',sans-serif;font-size:1rem;color:var(--text);background:#fff;transition:border-color .2s,box-shadow .2s;outline:none;}
-    select:focus,input:focus{border-color:var(--rose);box-shadow:0 0 0 4px rgba(233,30,99,.1);}
+    label{display:block;font-size:.82rem;font-weight:600;color:var(--text-muted);
+      text-transform:uppercase;letter-spacing:1px;margin-bottom:.4rem;}
+    select{
+      width:100%;padding:.75rem 1rem;border:2px solid var(--border);border-radius:10px;
+      font-family:'Be Vietnam Pro',sans-serif;font-size:1rem;color:var(--text);
+      background:#fff;transition:border-color .2s,box-shadow .15s;outline:none;
+    }
+    select:focus{border-color:var(--rose);box-shadow:0 0 0 3px rgba(233,30,99,.1);}
 
     /* ── NUMPAD ── */
     .score-display{text-align:center;margin-bottom:1rem;}
-    .score-value{font-family:'Playfair Display',serif;font-size:5rem;font-weight:900;line-height:1;color:var(--rose);transition:transform .15s,color .15s;}
-    .score-value.pulse{transform:scale(1.25);color:var(--purple);}
-    .score-label{font-size:.8rem;font-weight:600;color:var(--text-muted);letter-spacing:2px;text-transform:uppercase;margin-top:.2rem;}
-    .score-stars{font-size:1.4rem;letter-spacing:2px;margin-top:.4rem;min-height:1.8rem;transition:all .2s;}
-    .numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:.55rem;margin-bottom:.5rem;}
-    .numpad-btn{background:#fff;border:2px solid var(--border);border-radius:14px;padding:1rem 0;font-family:'Playfair Display',serif;font-size:1.8rem;font-weight:700;color:var(--text);cursor:pointer;transition:all .12s;user-select:none;box-shadow:0 2px 8px rgba(233,30,99,.06);-webkit-tap-highlight-color:transparent;}
-    .numpad-btn:hover{background:#fce4ec;border-color:var(--rose);color:var(--rose);transform:translateY(-2px);box-shadow:0 6px 16px rgba(233,30,99,.18);}
-    .numpad-btn:active{transform:scale(.93);background:#f8bbd0;}
-    .numpad-btn.selected{background:linear-gradient(135deg,var(--rose),var(--purple));border-color:transparent;color:#fff;box-shadow:0 6px 20px rgba(233,30,99,.4);transform:translateY(-2px);}
-    .numpad-btn.btn-clear{background:#fef2f2;border-color:#fecaca;color:var(--red);font-size:1.1rem;font-family:'Be Vietnam Pro',sans-serif;}
+    .score-value{
+      font-family:'Playfair Display',serif;font-size:5rem;font-weight:900;
+      line-height:1;color:var(--rose);
+      /* will-change gợi ý browser tối ưu layer */
+      will-change:transform;transition:transform .14s,color .14s;
+    }
+    .score-value.pulse{transform:scale(1.22);color:var(--purple);}
+    .score-label{font-size:.78rem;font-weight:600;color:var(--text-muted);
+      letter-spacing:2px;text-transform:uppercase;margin-top:.2rem;}
+    .score-stars{font-size:1.35rem;letter-spacing:1px;margin-top:.4rem;min-height:1.7rem;}
+    .numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:.5rem;}
+    .numpad-btn{
+      background:#fff;border:2px solid var(--border);border-radius:14px;padding:1rem 0;
+      font-family:'Playfair Display',serif;font-size:1.8rem;font-weight:700;
+      color:var(--text);cursor:pointer;
+      /* contain giúp browser không phải repaint toàn trang */
+      contain:layout style;
+      transition:background .1s,border-color .1s,transform .1s,box-shadow .1s;
+      user-select:none;-webkit-tap-highlight-color:transparent;
+    }
+    .numpad-btn:hover{background:var(--rose-light);border-color:var(--rose);color:var(--rose);transform:translateY(-2px);box-shadow:0 5px 14px rgba(233,30,99,.16);}
+    .numpad-btn:active{transform:scale(.92);}
+    .numpad-btn.selected{
+      background:linear-gradient(135deg,var(--rose),var(--purple));
+      border-color:transparent;color:#fff;
+      box-shadow:0 5px 18px rgba(233,30,99,.38);transform:translateY(-2px);
+    }
+    .numpad-btn.btn-clear{
+      background:#fef2f2;border-color:#fecaca;color:var(--red);
+      font-size:1.05rem;font-family:'Be Vietnam Pro',sans-serif;
+    }
     .numpad-btn.btn-clear:hover{background:#fee2e2;}
 
     /* ── VOTE BUTTON ── */
-    .btn-vote{width:100%;padding:1rem;background:linear-gradient(135deg,var(--rose),var(--purple));color:white;border:none;border-radius:12px;cursor:pointer;font-family:'Be Vietnam Pro',sans-serif;font-size:1.05rem;font-weight:700;letter-spacing:.5px;transition:transform .15s,box-shadow .15s;box-shadow:0 6px 20px rgba(233,30,99,.35);}
-    .btn-vote:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(233,30,99,.45);}
+    .btn-vote{
+      width:100%;padding:1rem;
+      background:linear-gradient(135deg,var(--rose),var(--purple));
+      color:#fff;border:none;border-radius:12px;cursor:pointer;
+      font-family:'Be Vietnam Pro',sans-serif;font-size:1.05rem;font-weight:700;
+      letter-spacing:.4px;transition:transform .14s,box-shadow .14s;
+      box-shadow:0 5px 18px rgba(233,30,99,.32);
+    }
+    .btn-vote:hover{transform:translateY(-2px);box-shadow:0 9px 26px rgba(233,30,99,.42);}
     .btn-vote:active{transform:translateY(0);}
     .btn-vote:disabled{opacity:.5;cursor:not-allowed;transform:none;}
-    #voteMessage{text-align:center;margin-top:1rem;font-weight:600;font-size:.95rem;min-height:1.5rem;}
-    .msg-success{color:#16a34a;}
-    .msg-error{color:var(--rose);}
+    #voteMessage{text-align:center;margin-top:1rem;font-weight:600;font-size:.93rem;min-height:1.4rem;}
+    .msg-ok{color:var(--green);}
+    .msg-err{color:var(--rose);}
 
     /* ── VOTING CLOSED ── */
-    .voting-closed-notice{background:linear-gradient(135deg,#fce4ec,#f3e5f5);border:2px solid rgba(233,30,99,.3);border-radius:16px;padding:1.5rem;text-align:center;color:var(--text-muted);font-weight:500;font-size:1rem;}
+    .voting-closed-notice{
+      background:linear-gradient(135deg,#fce4ec,#f3e5f5);
+      border:2px solid rgba(233,30,99,.28);border-radius:16px;
+      padding:1.5rem;text-align:center;color:var(--text-muted);font-weight:500;
+    }
 
     /* ── RESULTS ── */
     #resultsSection{display:none;}
-
-    /* ── SECTION HEADING ── */
-    .section-heading{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:900;text-align:center;color:var(--text);margin-bottom:1.5rem;}
+    .section-heading{
+      font-family:'Playfair Display',serif;font-size:1.55rem;font-weight:900;
+      text-align:center;color:var(--text);margin-bottom:1.5rem;
+    }
     .section-heading span{color:var(--rose);}
 
     /* ── TOP 3 ── */
     .top3-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;}
-    @media(max-width:600px){.top3-grid{grid-template-columns:1fr;}}
-    .medal-card{border-radius:16px;padding:1.5rem;text-align:center;border:2px solid transparent;position:relative;overflow:hidden;transition:transform .3s;}
+    @media(max-width:580px){.top3-grid{grid-template-columns:1fr;}}
+    .medal-card{
+      border-radius:16px;padding:1.5rem;text-align:center;
+      border:2px solid transparent;
+      /* Thay animation bounce liên tục bằng hover transform — nhẹ hơn nhiều */
+      transition:transform .25s;
+    }
     .medal-card:hover{transform:translateY(-5px);}
-    .medal-card.rank-1{background:linear-gradient(135deg,#fef9c3,#fde68a);border-color:var(--gold);box-shadow:0 8px 30px rgba(245,158,11,.3);}
-    .medal-card.rank-2{background:linear-gradient(135deg,#f1f5f9,#e2e8f0);border-color:var(--silver);box-shadow:0 8px 30px rgba(148,163,184,.3);}
-    .medal-card.rank-3{background:linear-gradient(135deg,#fef3c7,#fde68a);border-color:var(--bronze);box-shadow:0 8px 30px rgba(180,83,9,.25);}
-    .medal-emoji{font-size:2.8rem;display:block;margin-bottom:.5rem;animation:bounce 1.8s ease-in-out infinite;}
-    @keyframes bounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
-    .medal-name{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:.4rem;}
-    .medal-score{font-size:1.9rem;font-weight:900;color:var(--rose);line-height:1;}
-    .medal-votes{font-size:.8rem;color:var(--text-muted);font-weight:500;margin-top:.3rem;}
+    .medal-card.rank-1{background:linear-gradient(135deg,#fef9c3,#fde68a);border-color:var(--gold);box-shadow:0 6px 24px rgba(245,158,11,.25);}
+    .medal-card.rank-2{background:linear-gradient(135deg,#f1f5f9,#e2e8f0);border-color:var(--silver);box-shadow:0 6px 24px rgba(148,163,184,.25);}
+    .medal-card.rank-3{background:linear-gradient(135deg,#fef3c7,#fde68a);border-color:var(--bronze);box-shadow:0 6px 24px rgba(180,83,9,.2);}
+    .medal-emoji{font-size:2.6rem;display:block;margin-bottom:.5rem;}
+    .medal-name{font-family:'Playfair Display',serif;font-size:1.05rem;font-weight:700;color:var(--text);margin-bottom:.35rem;}
+    .medal-score{font-size:1.85rem;font-weight:900;color:var(--rose);line-height:1;}
+    .medal-votes{font-size:.78rem;color:var(--text-muted);font-weight:500;margin-top:.3rem;}
 
-    /* ── VOTES RANKING TABLE ── */
-    .votes-rank-table{width:100%;border-collapse:collapse;font-size:.93rem;}
-    .votes-rank-table th{text-align:left;padding:.6rem .8rem;font-size:.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:700;background:var(--bg);border-bottom:2px solid var(--border);}
-    .votes-rank-table td{padding:.65rem .8rem;border-bottom:1px solid rgba(233,30,99,.07);}
+    /* ── VOTES RANKING ── */
+    .votes-rank-table{width:100%;border-collapse:collapse;font-size:.92rem;}
+    .votes-rank-table th{
+      text-align:left;padding:.55rem .75rem;font-size:.73rem;
+      text-transform:uppercase;letter-spacing:1px;
+      color:var(--text-muted);font-weight:700;background:var(--bg);
+      border-bottom:2px solid var(--border);
+    }
+    .votes-rank-table td{padding:.6rem .75rem;border-bottom:1px solid rgba(233,30,99,.06);}
     .votes-rank-table tr:hover td{background:#fef5f8;}
-    .rank-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--rose-light);color:var(--rose);font-weight:900;font-size:.85rem;}
-    .vote-bar-wrap{background:#fce4ec;border-radius:20px;height:10px;margin-top:4px;}
-    .vote-bar{background:linear-gradient(90deg,var(--rose),var(--purple));border-radius:20px;height:10px;transition:width .6s ease;}
+    .rank-badge{
+      display:inline-flex;align-items:center;justify-content:center;
+      width:26px;height:26px;border-radius:50%;
+      background:var(--rose-light);color:var(--rose);font-weight:900;font-size:.82rem;
+    }
+    .vote-bar-wrap{background:#fce4ec;border-radius:20px;height:8px;margin-top:4px;}
+    .vote-bar{
+      background:linear-gradient(90deg,var(--rose),var(--purple));
+      border-radius:20px;height:8px;
+      transition:width .5s ease;
+    }
 
     /* ── CHART ── */
-    .chart-wrap{position:relative;height:280px;}
+    .chart-wrap{position:relative;height:270px;}
 
     /* ── PENDING ── */
     #pendingMsg{text-align:center;padding:3rem 1rem;color:var(--text-muted);}
-    #pendingMsg .big-icon{font-size:3rem;margin-bottom:.5rem;}
+    #pendingMsg .big-icon{font-size:2.8rem;margin-bottom:.5rem;}
     #pendingMsg p{font-size:1rem;font-weight:500;}
 
-    /* ── DIVIDER ── */
-    .divider{height:2px;background:linear-gradient(90deg,transparent,var(--rose),transparent);margin:2.5rem 0;}
-
-    /* ── MUSIC BTN ── */
-    #musicToggle{position:fixed;bottom:1.5rem;right:1.5rem;z-index:999;width:52px;height:52px;background:var(--rose);color:white;border:none;border-radius:50%;cursor:pointer;font-size:1.3rem;box-shadow:0 6px 20px rgba(233,30,99,.4);transition:transform .2s;}
+    /* ── MISC ── */
+    .divider{height:2px;background:linear-gradient(90deg,transparent,var(--rose),transparent);margin:2rem 0;}
+    #musicToggle{
+      position:fixed;bottom:1.4rem;right:1.4rem;z-index:999;
+      width:50px;height:50px;background:var(--rose);color:#fff;
+      border:none;border-radius:50%;cursor:pointer;font-size:1.2rem;
+      box-shadow:0 5px 18px rgba(233,30,99,.38);transition:transform .18s;
+    }
     #musicToggle:hover{transform:scale(1.1);}
   </style>
 </head>
@@ -181,47 +297,43 @@
           <div class="score-label">điểm</div>
           <div class="score-stars" id="scoreStars"></div>
         </div>
-        <div class="numpad">
-          <button class="numpad-btn" onclick="selectScore(1)">1</button>
-          <button class="numpad-btn" onclick="selectScore(2)">2</button>
-          <button class="numpad-btn" onclick="selectScore(3)">3</button>
-          <button class="numpad-btn" onclick="selectScore(4)">4</button>
-          <button class="numpad-btn" onclick="selectScore(5)">5</button>
-          <button class="numpad-btn" onclick="selectScore(6)">6</button>
-          <button class="numpad-btn" onclick="selectScore(7)">7</button>
-          <button class="numpad-btn" onclick="selectScore(8)">8</button>
-          <button class="numpad-btn" onclick="selectScore(9)">9</button>
-          <button class="numpad-btn btn-clear" onclick="selectScore(0)" style="grid-column:1/3">✕ Xoá</button>
-          <button class="numpad-btn" onclick="selectScore(10)">10</button>
+        <div class="numpad" id="numpad">
+          <button class="numpad-btn" data-v="1">1</button>
+          <button class="numpad-btn" data-v="2">2</button>
+          <button class="numpad-btn" data-v="3">3</button>
+          <button class="numpad-btn" data-v="4">4</button>
+          <button class="numpad-btn" data-v="5">5</button>
+          <button class="numpad-btn" data-v="6">6</button>
+          <button class="numpad-btn" data-v="7">7</button>
+          <button class="numpad-btn" data-v="8">8</button>
+          <button class="numpad-btn" data-v="9">9</button>
+          <button class="numpad-btn btn-clear" data-v="0" style="grid-column:1/3">✕ Xoá</button>
+          <button class="numpad-btn" data-v="10">10</button>
         </div>
         <input type="hidden" id="score" value="">
       </div>
 
-      <button class="btn-vote" id="voteBtn" onclick="submitVote()">🗳️ Gửi Bình Chọn</button>
-      <div id="voteMessage"></div>
+      <button class="btn-vote" id="voteBtn">🗳️ Gửi Bình Chọn</button>
+      <div id="voteMessage" role="alert"></div>
     </div>
 
-    <div id="votingClosedWrap" style="display:none;">
-      <div class="voting-closed-notice">
-        ⛔ Đã hết thời gian bình chọn. Cảm ơn sự tham gia của bạn!
-      </div>
+    <div id="votingClosedWrap" style="display:none">
+      <div class="voting-closed-notice">⛔ Đã hết thời gian bình chọn. Cảm ơn sự tham gia của bạn!</div>
     </div>
   </div>
 
-  <!-- RESULTS (hidden until voting ends) -->
+  <!-- RESULTS -->
   <div id="resultsSection">
     <div class="divider"></div>
 
-    <!-- TOP 3 (by avg score) -->
     <div class="card" id="cardTop3Avg">
       <div class="section-heading">🏆 Bảng Xếp Hạng <span>Top 3 Điểm TB</span></div>
       <div id="top3" class="top3-grid"></div>
     </div>
 
-    <!-- VOTES RANKING (by vote count) -->
     <div class="card" id="cardVotesRank">
       <div class="section-heading">🗳️ Xếp Hạng <span>Theo Lượt Vote</span></div>
-      <div class="table-wrap">
+      <div style="overflow-x:auto">
         <table class="votes-rank-table">
           <thead><tr><th>#</th><th>Đội thi</th><th>Lượt vote</th><th>Điểm TB</th></tr></thead>
           <tbody id="votesRankBody"></tbody>
@@ -229,312 +341,374 @@
       </div>
     </div>
 
-    <!-- CHART -->
     <div class="card" id="cardChart">
-      <div class="section-heading">📊 Biểu Đồ <span>Điểm Trung Bình</span></div>
-      <div class="chart-wrap">
-        <canvas id="chart"></canvas>
-      </div>
+      <div class="section-heading" id="chartHeading">📊 Biểu Đồ <span>Điểm Trung Bình</span></div>
+      <div class="chart-wrap"><canvas id="chart"></canvas></div>
     </div>
   </div>
 
-  <!-- PENDING (shown while voting is open) -->
   <div id="pendingMsg">
     <div class="big-icon">🔒</div>
     <p>Kết quả sẽ được công bố sau khi bình chọn kết thúc</p>
   </div>
-
 </div>
 
-<button id="musicToggle" onclick="toggleMusic()" title="Nhạc nền">🎵</button>
+<button id="musicToggle" title="Nhạc nền">🎵</button>
 
 <script>
+/* ══════════════════════════════════════════
+   DOM CACHE — truy cập 1 lần duy nhất
+══════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+const DOM = {
+  countdown:       $("countdown"),
+  teamSel:         $("team"),
+  scoreHidden:     $("score"),
+  scoreDisplay:    $("scoreDisplay"),
+  scoreStars:      $("scoreStars"),
+  voteBtn:         $("voteBtn"),
+  voteMsg:         $("voteMessage"),
+  voteFormWrap:    $("voteFormWrap"),
+  votingClosedWrap:$("votingClosedWrap"),
+  resultsSection:  $("resultsSection"),
+  pendingMsg:      $("pendingMsg"),
+  top3:            $("top3"),
+  votesRankBody:   $("votesRankBody"),
+  chartCanvas:     $("chart"),
+  chartHeading:    $("chartHeading"),
+  cardTop3Avg:     $("cardTop3Avg"),
+  cardVotesRank:   $("cardVotesRank"),
+  musicToggle:     $("musicToggle"),
+  bgMusic:         $("bgMusic"),
+};
+
+/* ── Cache danh sách nút numpad (1 lần, không querySelectorAll lặp lại) ── */
+const numpadBtns = Array.from(document.querySelectorAll(".numpad-btn"));
+
 const API_URL = CONFIG.API_URL;
-let chart;
+let chartInstance = null;
 let musicOn = false;
 let countdownInterval = null;
 let closedStateDone = false;
+let currentScore = 0;
 
-/* ── MUSIC ── */
-function toggleMusic() {
-  const a = document.getElementById("bgMusic");
-  musicOn ? a.pause() : a.play();
+/* ── Voter ID: tạo 1 lần lúc boot ── */
+const VOTER_KEY = "karaoke_device_id";
+if (!localStorage.getItem(VOTER_KEY)) {
+  localStorage.setItem(VOTER_KEY, "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9));
+}
+const DEVICE_ID = localStorage.getItem(VOTER_KEY);
+
+/* ══════════════════════════════════════════
+   MUSIC
+══════════════════════════════════════════ */
+DOM.musicToggle.addEventListener("click", () => {
+  musicOn ? DOM.bgMusic.pause() : DOM.bgMusic.play();
   musicOn = !musicOn;
-  document.getElementById("musicToggle").textContent = musicOn ? "⏸️" : "🎵";
-}
+  DOM.musicToggle.textContent = musicOn ? "⏸️" : "🎵";
+});
 
-/* ── TEAMS ── */
+/* ══════════════════════════════════════════
+   TEAMS
+══════════════════════════════════════════ */
 function populateTeams() {
-  const sel = document.getElementById("team");
-  sel.innerHTML = '<option value="">-- Chọn đội --</option>';
-  if (!CONFIG.TEAMS || !CONFIG.TEAMS.length) {
-    sel.innerHTML += '<option disabled>⚠️ Chưa cấu hình đội thi</option>';
-    return;
+  const frag = document.createDocumentFragment();
+  const def = document.createElement("option");
+  def.value = ""; def.textContent = "-- Chọn đội --";
+  frag.appendChild(def);
+
+  if (!CONFIG.TEAMS.length) {
+    const warn = document.createElement("option");
+    warn.disabled = true; warn.textContent = "⚠️ Chưa cấu hình đội thi";
+    frag.appendChild(warn);
+  } else {
+    CONFIG.TEAMS.forEach(t => {
+      const o = document.createElement("option");
+      o.value = t; o.textContent = t; frag.appendChild(o);
+    });
   }
-  CONFIG.TEAMS.forEach(t => {
-    const o = document.createElement("option");
-    o.value = t; o.textContent = t; sel.appendChild(o);
-  });
+  DOM.teamSel.innerHTML = "";
+  DOM.teamSel.appendChild(frag);
 }
 
-/* ── COUNTDOWN ── */
+/* ══════════════════════════════════════════
+   COUNTDOWN
+══════════════════════════════════════════ */
 function getEndTime() { return new Date(CONFIG.END_TIME); }
-function isVotingOpen() { return CONFIG.VOTING_ENABLED && new Date() < getEndTime(); }
+function isVotingOpen() { return CONFIG.VOTING_ENABLED && Date.now() < getEndTime(); }
 
 function updateCountdown() {
-  const diff = getEndTime() - new Date();
-  const el = document.getElementById("countdown");
+  const diff = getEndTime() - Date.now();
   if (!CONFIG.VOTING_ENABLED || diff <= 0) {
-    el.innerHTML = "⛔ ĐÃ KẾT THÚC BÌNH CHỌN"; el.classList.add("ended");
+    DOM.countdown.textContent = "⛔ ĐÃ KẾT THÚC BÌNH CHỌN";
+    DOM.countdown.classList.add("ended");
+    clearInterval(countdownInterval);
     if (!closedStateDone) { closedStateDone = true; showClosedState(); }
     return;
   }
-  const h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000), s = Math.floor((diff%60000)/1000);
-  el.innerHTML = `⏳ Còn lại: ${String(h).padStart(2,'0')}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  // textContent nhanh hơn innerHTML vì không parse HTML
+  DOM.countdown.textContent =
+    `⏳ Còn lại: ${String(h).padStart(2,"0")}h ${String(m).padStart(2,"0")}m ${String(s).padStart(2,"0")}s`;
 }
 
-function showClosedState() {
-  document.getElementById("voteFormWrap").style.display = "none";
-  document.getElementById("votingClosedWrap").style.display = "block";
-  document.getElementById("resultsSection").style.display = "block";
-  document.getElementById("pendingMsg").style.display = "none";
-  loadResults();
+function showClosedState(summaryData) {
+  DOM.voteFormWrap.style.display = "none";
+  DOM.votingClosedWrap.style.display = "block";
+  DOM.resultsSection.style.display = "block";
+  DOM.pendingMsg.style.display = "none";
+  // Nếu đã có data (từ boot fetch) dùng lại, không gọi API lần 2
+  if (summaryData) renderResults(summaryData);
+  else loadResults();
 }
 
-/* ── BOOT ── */
-CONFIG.loadFromAPI(function() {
+/* ══════════════════════════════════════════
+   BOOT — 1 fetch duy nhất cho cả settings + data
+══════════════════════════════════════════ */
+CONFIG.loadFromAPI(function(apiData) {
   populateTeams();
   updateCountdown();
-  if (countdownInterval) clearInterval(countdownInterval);
   countdownInterval = setInterval(updateCountdown, 1000);
-  if (!isVotingOpen() && !closedStateDone) { closedStateDone = true; showClosedState(); }
+
+  if (!isVotingOpen() && !closedStateDone) {
+    closedStateDone = true;
+    // Nếu voting đã đóng ngay từ đầu, truyền data vào để không fetch lại
+    showClosedState(apiData && apiData.summary ? apiData.summary : null);
+  }
 });
 
-/* ── NUMPAD ── */
-let currentScore = 0;
+/* ══════════════════════════════════════════
+   NUMPAD — event delegation thay vì 11 onclick
+══════════════════════════════════════════ */
+$("numpad").addEventListener("click", e => {
+  const btn = e.target.closest(".numpad-btn");
+  if (!btn) return;
+  selectScore(Number(btn.dataset.v));
+});
 
 function selectScore(val) {
-  const display = document.getElementById("scoreDisplay");
-  const stars   = document.getElementById("scoreStars");
-  const hidden  = document.getElementById("score");
-  const btns    = document.querySelectorAll(".numpad-btn");
-
   if (val === 0) {
-    currentScore = 0; hidden.value = "";
-    display.textContent = "—"; stars.textContent = "";
-    btns.forEach(b => b.classList.remove("selected"));
+    currentScore = 0;
+    DOM.scoreHidden.value = "";
+    DOM.scoreDisplay.textContent = "—";
+    DOM.scoreStars.textContent = "";
+    numpadBtns.forEach(b => b.classList.remove("selected"));
     return;
   }
 
-  currentScore = val; hidden.value = val;
-  display.textContent = val;
-  display.classList.remove("pulse");
-  void display.offsetWidth;
-  display.classList.add("pulse");
-  setTimeout(() => display.classList.remove("pulse"), 200);
+  currentScore = val;
+  DOM.scoreHidden.value = val;
+  DOM.scoreDisplay.textContent = val;
 
-  stars.textContent = "⭐".repeat(Math.min(val, 10));
+  // Pulse animation
+  DOM.scoreDisplay.classList.remove("pulse");
+  requestAnimationFrame(() => {
+    DOM.scoreDisplay.classList.add("pulse");
+    setTimeout(() => DOM.scoreDisplay.classList.remove("pulse"), 180);
+  });
 
-  btns.forEach(b => {
+  DOM.scoreStars.textContent = "⭐".repeat(val);
+
+  numpadBtns.forEach(b => {
     b.classList.toggle("selected",
-      b.textContent.trim() === String(val) && !b.classList.contains("btn-clear"));
+      b.dataset.v === String(val) && !b.classList.contains("btn-clear"));
   });
 }
 
-/* ── SUBMIT VOTE ── */
+/* ══════════════════════════════════════════
+   SUBMIT VOTE
+══════════════════════════════════════════ */
+DOM.voteBtn.addEventListener("click", submitVote);
+
+function setMsg(text, ok) {
+  DOM.voteMsg.textContent = text;
+  DOM.voteMsg.className = ok ? "msg-ok" : "msg-err";
+}
+
 function submitVote() {
   if (!isVotingOpen()) {
     if (!closedStateDone) { closedStateDone = true; showClosedState(); }
     return;
   }
 
-  const team  = document.getElementById("team").value;
-  const score = Number(document.getElementById("score").value);
-  const msg   = document.getElementById("voteMessage");
+  const team  = DOM.teamSel.value;
+  const score = Number(DOM.scoreHidden.value);
 
-  if (!team)  { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng chọn đội thi."; return; }
-  if (!score || score < 1 || score > 10) { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng chọn điểm (1–10)."; return; }
+  if (!team)  { setMsg("⚠️ Vui lòng chọn đội thi.", false); return; }
+  if (!score || score < 1 || score > 10) { setMsg("⚠️ Vui lòng chọn điểm (1–10).", false); return; }
 
-  // Tạo voter ID
-  // Nếu restrict_vote=true → dùng deviceID cố định lưu localStorage để chặn vote trùng
-  // Nếu restrict_vote=false → tạo ID ngẫu nhiên mỗi lần (tự do)
-  let voter;
-  if (CONFIG.RESTRICT_VOTE) {
-    const KEY = "karaoke_voter_id";
-    if (!localStorage.getItem(KEY)) {
-      localStorage.setItem(KEY, "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2,7));
+  // restrict=true → cùng deviceID mỗi lần (server chặn trùng)
+  // restrict=false → thêm timestamp để luôn khác nhau
+  const voter = CONFIG.RESTRICT_VOTE ? DEVICE_ID : DEVICE_ID + "_" + Date.now();
+
+  DOM.voteBtn.disabled = true;
+  DOM.voteBtn.textContent = "⏳ Đang gửi...";
+  DOM.voteMsg.textContent = "";
+
+  fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({ team, score, voter })
+  })
+  .then(r => r.json())
+  .then(data => {
+    DOM.voteBtn.disabled = false;
+    DOM.voteBtn.textContent = "🗳️ Gửi Bình Chọn";
+    if (data.status === "success") {
+      setMsg("✅ Bình chọn thành công! Cảm ơn bạn 💖", true);
+      DOM.teamSel.value = "";
+      selectScore(0);
+    } else if (data.status === "duplicate") {
+      setMsg(CONFIG.RESTRICT_VOTE ? "⚠️ Thiết bị này đã bình chọn đội này rồi." : "⚠️ Đã bình chọn trùng.", false);
+    } else if (data.status === "closed" || data.status === "disabled") {
+      setMsg("⛔ Đã hết thời gian bình chọn.", false);
+      if (!closedStateDone) { closedStateDone = true; showClosedState(); }
+    } else {
+      setMsg("❌ Lỗi: " + data.status, false);
     }
-    voter = localStorage.getItem(KEY);
-  } else {
-    voter = "anon_" + Date.now() + "_" + Math.random().toString(36).slice(2,7);
-  }
-
-  const btn = document.getElementById("voteBtn");
-  btn.disabled = true; btn.textContent = "Đang gửi..."; msg.textContent = "";
-
-  fetch(API_URL, { method: "POST", body: JSON.stringify({ team, score, voter }) })
-    .then(r => r.json())
-    .then(data => {
-      btn.disabled = false; btn.textContent = "🗳️ Gửi Bình Chọn";
-      if (data.status === "success") {
-        msg.className = "msg-success";
-        msg.textContent = "✅ Bình chọn thành công! Cảm ơn bạn 💖";
-        document.getElementById("team").value = "";
-        selectScore(0);
-      } else if (data.status === "duplicate") {
-        msg.className = "msg-error";
-        msg.textContent = CONFIG.RESTRICT_VOTE
-          ? "⚠️ Thiết bị này đã bình chọn rồi."
-          : "⚠️ Đã bình chọn trùng.";
-      } else if (data.status === "closed" || data.status === "disabled") {
-        msg.className = "msg-error"; msg.textContent = "⛔ Đã hết thời gian bình chọn.";
-        if (!closedStateDone) { closedStateDone = true; showClosedState(); }
-      } else {
-        msg.className = "msg-error"; msg.textContent = "❌ Lỗi: " + data.status;
-      }
-    })
-    .catch(() => {
-      btn.disabled = false; btn.textContent = "🗳️ Gửi Bình Chọn";
-      msg.className = "msg-error"; msg.textContent = "❌ Không kết nối được máy chủ.";
-    });
+  })
+  .catch(() => {
+    DOM.voteBtn.disabled = false;
+    DOM.voteBtn.textContent = "🗳️ Gửi Bình Chọn";
+    setMsg("❌ Không kết nối được máy chủ.", false);
+  });
 }
 
-/* ── LOAD RESULTS ── */
+/* ══════════════════════════════════════════
+   LOAD RESULTS (gọi khi cần fetch lại)
+══════════════════════════════════════════ */
 function loadResults() {
   fetch(API_URL)
     .then(r => r.json())
     .then(data => {
       if (data.status === "ok") {
-        // Sync sort_mode từ API (admin đã cấu hình)
         if (data.settings && data.settings.sort_mode) CONFIG.SORT_MODE = data.settings.sort_mode;
-
-        const mode = CONFIG.SORT_MODE; // "avg" hoặc "votes"
-
-        // Hiển thị đúng các block theo chế độ admin đã chọn
-        // mode="avg"   → chỉ hiện Top3 điểm TB + biểu đồ điểm TB
-        // mode="votes" → chỉ hiện bảng xếp hạng lượt vote + biểu đồ lượt vote
-        const showAvg   = mode !== "votes";
-        const showVotes = mode === "votes";
-
-        document.getElementById("cardTop3Avg").style.display   = showAvg   ? "" : "none";
-        document.getElementById("cardVotesRank").style.display = showVotes  ? "" : "none";
-        // Chart luôn hiện nhưng đổi tiêu đề + dữ liệu theo mode
-        document.getElementById("cardChart").style.display = "";
-
-        // Cập nhật tiêu đề biểu đồ theo mode
-        const chartHeading = document.querySelector("#cardChart .section-heading");
-        if (chartHeading) {
-          chartHeading.innerHTML = showAvg
-            ? '📊 Biểu Đồ <span>Điểm Trung Bình</span>'
-            : '📊 Biểu Đồ <span>Lượt Bình Chọn</span>';
-        }
-
-        if (showAvg)   renderTop3(data.summary);
-        if (showVotes) renderVotesRanking(data.summary);
-        renderChart(data.summary);
+        renderResults(data.summary);
       }
-    });
+    })
+    .catch(() => {});
 }
 
-/* ── TOP 3 (by avg score) ── */
-function renderTop3(summary) {
-  const teams = Object.keys(summary).map(t => ({
-    name: t, avg: parseFloat(summary[t].average), votes: summary[t].votes
-  })).sort((a, b) => b.avg - a.avg).slice(0, 3);
+/* ══════════════════════════════════════════
+   RENDER RESULTS (điều phối theo SORT_MODE)
+══════════════════════════════════════════ */
+function renderResults(summary) {
+  const isVotes = CONFIG.SORT_MODE === "votes";
 
-  const medals = ["🥇","🥈","🥉"];
+  DOM.cardTop3Avg.style.display   = isVotes ? "none" : "";
+  DOM.cardVotesRank.style.display = isVotes ? "" : "none";
+  DOM.chartHeading.innerHTML      = isVotes
+    ? "📊 Biểu Đồ <span>Lượt Bình Chọn</span>"
+    : "📊 Biểu Đồ <span>Điểm Trung Bình</span>";
+
+  // Chuyển summary sang array 1 lần, tái dùng cho cả 3 hàm
+  const entries = Object.keys(summary).map(t => ({
+    name:  t,
+    avg:   parseFloat(summary[t].average),
+    votes: summary[t].votes
+  }));
+
+  if (!isVotes) renderTop3(entries);
+  else          renderVotesRanking(entries);
+  renderChart(entries, isVotes);
+}
+
+/* ── TOP 3 ── */
+function renderTop3(entries) {
+  const top = entries.slice().sort((a, b) => b.avg - a.avg).slice(0, 3);
+  const medals  = ["🥇","🥈","🥉"];
   const rankCls = ["rank-1","rank-2","rank-3"];
-  const container = document.getElementById("top3");
-  container.innerHTML = "";
+  const frag = document.createDocumentFragment();
 
-  teams.forEach((t, i) => {
-    container.innerHTML += `
-      <div class="medal-card ${rankCls[i]}">
-        <span class="medal-emoji">${medals[i]}</span>
-        <div class="medal-name">${t.name}</div>
-        <div class="medal-score">${t.avg.toFixed(1)}</div>
-        <div class="medal-votes">${t.votes} lượt bình chọn</div>
-      </div>`;
+  top.forEach((t, i) => {
+    const div = document.createElement("div");
+    div.className = `medal-card ${rankCls[i]}`;
+    div.innerHTML =
+      `<span class="medal-emoji">${medals[i]}</span>` +
+      `<div class="medal-name">${t.name}</div>` +
+      `<div class="medal-score">${t.avg.toFixed(1)}</div>` +
+      `<div class="medal-votes">${t.votes} lượt bình chọn</div>`;
+    frag.appendChild(div);
   });
 
-  if (teams.length > 0) confetti({ particleCount: 180, spread: 120, origin: { y: 0.55 } });
+  DOM.top3.innerHTML = "";
+  DOM.top3.appendChild(frag);
+  if (top.length) confetti({ particleCount: 160, spread: 110, origin: { y: 0.6 } });
 }
 
-/* ── VOTES RANKING (by vote count) ── */
-function renderVotesRanking(summary) {
-  // Sort by vote count (high → low), tie-break by avg
-  const teams = Object.keys(summary).map(t => ({
-    name: t, avg: parseFloat(summary[t].average), votes: summary[t].votes
-  })).sort((a, b) => b.votes - a.votes || b.avg - a.avg);
+/* ── VOTES RANKING ── */
+function renderVotesRanking(entries) {
+  const sorted = entries.slice().sort((a, b) => b.votes - a.votes || b.avg - a.avg);
+  const maxV   = sorted[0] ? sorted[0].votes : 1;
+  const medals = ["🥇","🥈","🥉"];
+  const frag   = document.createDocumentFragment();
 
-  const maxVotes = teams[0] ? teams[0].votes : 1;
-  const ranks = ["🥇","🥈","🥉"];
-  const tbody = document.getElementById("votesRankBody");
-  tbody.innerHTML = "";
-
-  teams.forEach((t, i) => {
-    const pct = maxVotes > 0 ? Math.round((t.votes / maxVotes) * 100) : 0;
-    const badge = ranks[i] || `<span class="rank-badge">${i+1}</span>`;
-    tbody.innerHTML += `
-      <tr>
-        <td>${badge}</td>
-        <td><strong>${t.name}</strong></td>
-        <td>
-          <div style="font-weight:700;font-size:1rem;color:var(--rose)">${t.votes}</div>
-          <div class="vote-bar-wrap"><div class="vote-bar" style="width:${pct}%"></div></div>
-        </td>
-        <td style="color:var(--text-muted)">${t.avg.toFixed(2)}</td>
-      </tr>`;
+  sorted.forEach((t, i) => {
+    const pct   = maxV > 0 ? Math.round(t.votes / maxV * 100) : 0;
+    const badge = medals[i] || `<span class="rank-badge">${i + 1}</span>`;
+    const tr    = document.createElement("tr");
+    tr.innerHTML =
+      `<td>${badge}</td>` +
+      `<td><strong>${t.name}</strong></td>` +
+      `<td><div style="font-weight:700;font-size:.98rem;color:var(--rose)">${t.votes}</div>` +
+      `<div class="vote-bar-wrap"><div class="vote-bar" style="width:${pct}%"></div></div></td>` +
+      `<td style="color:var(--text-muted)">${t.avg.toFixed(2)}</td>`;
+    frag.appendChild(tr);
   });
+
+  DOM.votesRankBody.innerHTML = "";
+  DOM.votesRankBody.appendChild(frag);
 }
 
 /* ── CHART ── */
-function renderChart(summary) {
-  const isVotesMode = CONFIG.SORT_MODE === "votes";
+const COLORS = ["#e91e63","#9c27b0","#f59e0b","#10b981","#3b82f6","#06b6d4","#84cc16","#f97316","#8b5cf6","#14b8a6","#ec4899","#a16207"];
 
-  const entries = Object.keys(summary).map(t => ({
-    name: t, avg: parseFloat(summary[t].average), votes: summary[t].votes
-  }));
+function renderChart(entries, isVotes) {
+  const sorted = entries.slice().sort(isVotes ? (a,b)=>b.votes-a.votes : (a,b)=>b.avg-a.avg);
+  const labels = sorted.map(e => e.name);
+  const values = sorted.map(e => isVotes ? e.votes : e.avg);
 
-  // Sắp xếp theo mode: votes → lượt vote cao → thấp | avg → điểm cao → thấp
-  if (isVotesMode) entries.sort((a,b) => b.votes - a.votes);
-  else             entries.sort((a,b) => b.avg - a.avg);
+  // Cập nhật data nếu chart đã tồn tại → tránh destroy/recreate (nhẹ hơn)
+  if (chartInstance) {
+    chartInstance.data.labels = labels;
+    chartInstance.data.datasets[0].data = values;
+    chartInstance.data.datasets[0].label = isVotes ? "Lượt bình chọn" : "Điểm trung bình";
+    chartInstance.data.datasets[0].backgroundColor = labels.map((_, i) => COLORS[i % COLORS.length]);
+    chartInstance.options.scales.y.max = isVotes ? undefined : 10;
+    chartInstance.update("active");
+    return;
+  }
 
-  const labels = entries.map(e => e.name);
-  // Dữ liệu: nếu mode=votes → hiện số lượt vote; nếu mode=avg → hiện điểm TB
-  const values = isVotesMode
-    ? entries.map(e => e.votes)
-    : entries.map(e => e.avg);
-  const dataLabel = isVotesMode ? "Lượt bình chọn" : "Điểm trung bình";
-  const colors = ["#e91e63","#9c27b0","#f59e0b","#10b981","#3b82f6","#06b6d4","#84cc16","#f97316","#8b5cf6","#14b8a6","#ec4899","#a16207"];
-
-  const ctx = document.getElementById("chart");
-  if (chart) chart.destroy();
-  chart = new Chart(ctx, {
+  chartInstance = new Chart(DOM.chartCanvas, {
     type: "bar",
     data: {
       labels,
       datasets: [{
-        label: dataLabel,
+        label: isVotes ? "Lượt bình chọn" : "Điểm trung bình",
         data: values,
-        backgroundColor: labels.map((_,i) => colors[i % colors.length]),
-        borderRadius: 8, borderSkipped: false
+        backgroundColor: labels.map((_, i) => COLORS[i % COLORS.length]),
+        borderRadius: 8,
+        borderSkipped: false
       }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
+      responsive: true,
+      maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
         y: {
           beginAtZero: true,
-          // mode=avg → max 10 | mode=votes → tự động
-          ...(isVotesMode ? {} : { max: 10 }),
+          ...(isVotes ? {} : { max: 10 }),
           grid: { color: "rgba(0,0,0,.05)" },
           ticks: { font: { family: "'Be Vietnam Pro'" } }
         },
-        x: { grid: { display: false }, ticks: { font: { family: "'Be Vietnam Pro'", weight: "600" } } }
+        x: {
+          grid: { display: false },
+          ticks: { font: { family: "'Be Vietnam Pro'", weight: "600" } }
+        }
       },
-      animation: { duration: 1500, easing: "easeOutBounce" }
+      animation: { duration: 900, easing: "easeOutQuart" }
     }
   });
 }
