@@ -20,12 +20,6 @@
     RESTRICT_VOTE: false,
     SORT_MODE: "avg"
   };
-  // Parse boolean từ Google Sheet (có thể trả về string "TRUE"/"FALSE" thay vì boolean)
-  function _parseBool(val) {
-    if (typeof val === "boolean") return val;
-    return String(val).toLowerCase() === "true";
-  }
-
   CONFIG.loadFromAPI = function(callback) {
     fetch(CONFIG.API_URL)
       .then(r => r.json())
@@ -34,12 +28,10 @@
           const s = data.settings;
           if (s.end_time) CONFIG.END_TIME = s.end_time;
           if (Array.isArray(s.teams) && s.teams.length > 0) CONFIG.TEAMS = s.teams;
-          // Dùng _parseBool — xử lý đúng cả boolean lẫn chuỗi "TRUE"/"true" từ Google Sheet
-          if (s.voting_enabled !== undefined) CONFIG.VOTING_ENABLED = _parseBool(s.voting_enabled);
-          if (s.restrict_vote  !== undefined) CONFIG.RESTRICT_VOTE  = _parseBool(s.restrict_vote);
+          if (typeof s.voting_enabled === "boolean") CONFIG.VOTING_ENABLED = s.voting_enabled;
+          if (typeof s.restrict_vote  === "boolean") CONFIG.RESTRICT_VOTE  = s.restrict_vote;
           if (s.sort_mode) CONFIG.SORT_MODE = s.sort_mode;
         }
-        console.log("[CONFIG] loaded → RESTRICT_VOTE:", CONFIG.RESTRICT_VOTE, "| VOTING_ENABLED:", CONFIG.VOTING_ENABLED);
       })
       .catch(err => console.warn("[CONFIG] Không tải được settings:", err))
       .finally(() => { if (callback) callback(); });
@@ -221,13 +213,13 @@
     <div class="divider"></div>
 
     <!-- TOP 3 (by avg score) -->
-    <div class="card">
+    <div class="card" id="cardTop3Avg">
       <div class="section-heading">🏆 Bảng Xếp Hạng <span>Top 3 Điểm TB</span></div>
       <div id="top3" class="top3-grid"></div>
     </div>
 
     <!-- VOTES RANKING (by vote count) -->
-    <div class="card">
+    <div class="card" id="cardVotesRank">
       <div class="section-heading">🗳️ Xếp Hạng <span>Theo Lượt Vote</span></div>
       <div class="table-wrap">
         <table class="votes-rank-table">
@@ -238,7 +230,7 @@
     </div>
 
     <!-- CHART -->
-    <div class="card">
+    <div class="card" id="cardChart">
       <div class="section-heading">📊 Biểu Đồ <span>Điểm Trung Bình</span></div>
       <div class="chart-wrap">
         <canvas id="chart"></canvas>
@@ -364,22 +356,18 @@ function submitVote() {
   if (!score || score < 1 || score > 10) { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng chọn điểm (1–10)."; return; }
 
   // Tạo voter ID
-  // RESTRICT_VOTE=true  → dùng deviceID CỐ ĐỊNH lưu localStorage (1 thiết bị = 1 lần / 1 đội)
-  // RESTRICT_VOTE=false → tạo ID ngẫu nhiên mỗi lần (tự do)
-  const VOTER_KEY = "karaoke_device_id";
-  // Luôn tạo và lưu deviceID cố định (dùng cho cả 2 mode để debug)
-  if (!localStorage.getItem(VOTER_KEY)) {
-    localStorage.setItem(VOTER_KEY, "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9));
+  // Nếu restrict_vote=true → dùng deviceID cố định lưu localStorage để chặn vote trùng
+  // Nếu restrict_vote=false → tạo ID ngẫu nhiên mỗi lần (tự do)
+  let voter;
+  if (CONFIG.RESTRICT_VOTE) {
+    const KEY = "karaoke_voter_id";
+    if (!localStorage.getItem(KEY)) {
+      localStorage.setItem(KEY, "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2,7));
+    }
+    voter = localStorage.getItem(KEY);
+  } else {
+    voter = "anon_" + Date.now() + "_" + Math.random().toString(36).slice(2,7);
   }
-  const deviceId = localStorage.getItem(VOTER_KEY);
-
-  // Khi restrict_vote=true: gửi deviceID cố định → Apps Script sẽ chặn duplicate (team+voter)
-  // Khi restrict_vote=false: thêm timestamp → ID luôn mới → không bao giờ bị chặn
-  const voter = CONFIG.RESTRICT_VOTE
-    ? deviceId
-    : deviceId + "_" + Date.now();
-
-  console.log("[vote] RESTRICT_VOTE:", CONFIG.RESTRICT_VOTE, "| voter:", voter);
 
   const btn = document.getElementById("voteBtn");
   btn.disabled = true; btn.textContent = "Đang gửi..."; msg.textContent = "";
@@ -417,10 +405,32 @@ function loadResults() {
     .then(r => r.json())
     .then(data => {
       if (data.status === "ok") {
-        // Sync sort mode from API settings if available
+        // Sync sort_mode từ API (admin đã cấu hình)
         if (data.settings && data.settings.sort_mode) CONFIG.SORT_MODE = data.settings.sort_mode;
-        renderTop3(data.summary);
-        renderVotesRanking(data.summary);
+
+        const mode = CONFIG.SORT_MODE; // "avg" hoặc "votes"
+
+        // Hiển thị đúng các block theo chế độ admin đã chọn
+        // mode="avg"   → chỉ hiện Top3 điểm TB + biểu đồ điểm TB
+        // mode="votes" → chỉ hiện bảng xếp hạng lượt vote + biểu đồ lượt vote
+        const showAvg   = mode !== "votes";
+        const showVotes = mode === "votes";
+
+        document.getElementById("cardTop3Avg").style.display   = showAvg   ? "" : "none";
+        document.getElementById("cardVotesRank").style.display = showVotes  ? "" : "none";
+        // Chart luôn hiện nhưng đổi tiêu đề + dữ liệu theo mode
+        document.getElementById("cardChart").style.display = "";
+
+        // Cập nhật tiêu đề biểu đồ theo mode
+        const chartHeading = document.querySelector("#cardChart .section-heading");
+        if (chartHeading) {
+          chartHeading.innerHTML = showAvg
+            ? '📊 Biểu Đồ <span>Điểm Trung Bình</span>'
+            : '📊 Biểu Đồ <span>Lượt Bình Chọn</span>';
+        }
+
+        if (showAvg)   renderTop3(data.summary);
+        if (showVotes) renderVotesRanking(data.summary);
         renderChart(data.summary);
       }
     });
@@ -480,17 +490,23 @@ function renderVotesRanking(summary) {
 
 /* ── CHART ── */
 function renderChart(summary) {
-  // Sort chart by SORT_MODE from admin config
+  const isVotesMode = CONFIG.SORT_MODE === "votes";
+
   const entries = Object.keys(summary).map(t => ({
     name: t, avg: parseFloat(summary[t].average), votes: summary[t].votes
   }));
 
-  if (CONFIG.SORT_MODE === "votes") entries.sort((a,b) => b.votes - a.votes);
-  else entries.sort((a,b) => b.avg - a.avg);
+  // Sắp xếp theo mode: votes → lượt vote cao → thấp | avg → điểm cao → thấp
+  if (isVotesMode) entries.sort((a,b) => b.votes - a.votes);
+  else             entries.sort((a,b) => b.avg - a.avg);
 
   const labels = entries.map(e => e.name);
-  const values = entries.map(e => e.avg);
-  const colors = ["#e91e63","#9c27b0","#f59e0b","#10b981","#3b82f6"];
+  // Dữ liệu: nếu mode=votes → hiện số lượt vote; nếu mode=avg → hiện điểm TB
+  const values = isVotesMode
+    ? entries.map(e => e.votes)
+    : entries.map(e => e.avg);
+  const dataLabel = isVotesMode ? "Lượt bình chọn" : "Điểm trung bình";
+  const colors = ["#e91e63","#9c27b0","#f59e0b","#10b981","#3b82f6","#06b6d4","#84cc16","#f97316","#8b5cf6","#14b8a6","#ec4899","#a16207"];
 
   const ctx = document.getElementById("chart");
   if (chart) chart.destroy();
@@ -499,7 +515,7 @@ function renderChart(summary) {
     data: {
       labels,
       datasets: [{
-        label: "Điểm trung bình",
+        label: dataLabel,
         data: values,
         backgroundColor: labels.map((_,i) => colors[i % colors.length]),
         borderRadius: 8, borderSkipped: false
@@ -509,10 +525,16 @@ function renderChart(summary) {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        y: { beginAtZero:true, max:10, grid:{ color:"rgba(0,0,0,.05)" }, ticks:{ font:{ family:"'Be Vietnam Pro'" } } },
-        x: { grid:{ display:false }, ticks:{ font:{ family:"'Be Vietnam Pro'", weight:"600" } } }
+        y: {
+          beginAtZero: true,
+          // mode=avg → max 10 | mode=votes → tự động
+          ...(isVotesMode ? {} : { max: 10 }),
+          grid: { color: "rgba(0,0,0,.05)" },
+          ticks: { font: { family: "'Be Vietnam Pro'" } }
+        },
+        x: { grid: { display: false }, ticks: { font: { family: "'Be Vietnam Pro'", weight: "600" } } }
       },
-      animation: { duration:1500, easing:"easeOutBounce" }
+      animation: { duration: 1500, easing: "easeOutBounce" }
     }
   });
 }
