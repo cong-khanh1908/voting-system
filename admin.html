@@ -16,6 +16,10 @@
     RESTRICT_VOTE: false,
     SORT_MODE: "avg"
   };
+  function _parseBool(val) {
+    if (typeof val === "boolean") return val;
+    return String(val).toLowerCase() === "true";
+  }
   CONFIG.loadFromAPI = function(callback) {
     fetch(CONFIG.API_URL)
       .then(r => r.json())
@@ -24,8 +28,8 @@
           const s = data.settings;
           if (s.end_time) CONFIG.END_TIME = s.end_time;
           if (Array.isArray(s.teams) && s.teams.length > 0) CONFIG.TEAMS = s.teams;
-          if (typeof s.voting_enabled === "boolean") CONFIG.VOTING_ENABLED = s.voting_enabled;
-          if (typeof s.restrict_vote === "boolean") CONFIG.RESTRICT_VOTE = s.restrict_vote;
+          if (s.voting_enabled !== undefined) CONFIG.VOTING_ENABLED = _parseBool(s.voting_enabled);
+          if (s.restrict_vote  !== undefined) CONFIG.RESTRICT_VOTE  = _parseBool(s.restrict_vote);
           if (s.sort_mode) CONFIG.SORT_MODE = s.sort_mode;
         }
       })
