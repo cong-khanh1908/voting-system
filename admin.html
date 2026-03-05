@@ -2,159 +2,183 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <title>Admin Panel – Karaoke 8/3</title>
+  <title>Admin – Karaoke 8/3</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Be+Vietnam+Pro:wght@400;600;700&display=swap" rel="stylesheet">
 
   <script>
-  /* CONFIG nhúng thẳng */
+  /* ── CONFIG ── */
   const CONFIG = {
     API_URL: "https://script.google.com/macros/s/AKfycbzzpaPp6av7Faa92u18nQ5FHw79srrPzlF4uLzo5B4KrnZicaNAxjVnWr1-cT4jRrI/exec",
     END_TIME: "2026-03-10T23:59:59",
     TEAMS: ["Đội Hoa Hồng", "Đội Hướng Dương", "Đội Tulip"],
-    VOTING_ENABLED: true,
-    RESTRICT_VOTE: false,
-    SORT_MODE: "avg"
+    VOTING_ENABLED: true, RESTRICT_VOTE: false, SORT_MODE: "avg"
   };
-  function _parseBool(val) {
-    if (typeof val === "boolean") return val;
-    return String(val).toLowerCase() === "true";
-  }
-  CONFIG.loadFromAPI = function(callback) {
+  function parseBool(v){ return typeof v==="boolean"?v:String(v).toLowerCase()==="true"; }
+  CONFIG.loadFromAPI = function(cb) {
     fetch(CONFIG.API_URL)
-      .then(r => r.json())
-      .then(data => {
-        if (data.settings) {
-          const s = data.settings;
-          if (s.end_time) CONFIG.END_TIME = s.end_time;
-          if (Array.isArray(s.teams) && s.teams.length > 0) CONFIG.TEAMS = s.teams;
-          if (s.voting_enabled !== undefined) CONFIG.VOTING_ENABLED = _parseBool(s.voting_enabled);
-          if (s.restrict_vote  !== undefined) CONFIG.RESTRICT_VOTE  = _parseBool(s.restrict_vote);
-          if (s.sort_mode) CONFIG.SORT_MODE = s.sort_mode;
-        }
+      .then(r=>r.json())
+      .then(data=>{
+        const s=data.settings||{};
+        if(s.end_time) CONFIG.END_TIME=s.end_time;
+        if(Array.isArray(s.teams)&&s.teams.length) CONFIG.TEAMS=s.teams;
+        if(s.voting_enabled!==undefined) CONFIG.VOTING_ENABLED=parseBool(s.voting_enabled);
+        if(s.restrict_vote!==undefined)  CONFIG.RESTRICT_VOTE =parseBool(s.restrict_vote);
+        if(s.sort_mode) CONFIG.SORT_MODE=s.sort_mode;
+        if(cb) cb(data);
       })
-      .catch(err => console.warn("[CONFIG]", err))
-      .finally(() => { if (callback) callback(); });
+      .catch(e=>{ console.warn("[CONFIG]",e); if(cb) cb(null); });
   };
   </script>
 
   <style>
-    :root {
-      --rose:#e91e63; --rose-dark:#ad1457; --purple:#7b1fa2;
-      --green:#16a34a; --red:#dc2626;
-      --text:#1a0a14; --muted:#6b4a5e;
-      --bg:#f9f0f5; --card:#ffffff; --border:rgba(233,30,99,0.15);
+    :root{
+      --rose:#e91e63;--purple:#7b1fa2;
+      --green:#16a34a;--red:#dc2626;
+      --text:#1a0a14;--muted:#6b4a5e;
+      --bg:#f9f0f5;--card:#fff;--border:rgba(233,30,99,.15);
     }
     *{margin:0;padding:0;box-sizing:border-box;}
     body{font-family:'Be Vietnam Pro',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
 
     /* LOGIN */
     .login-page{min-height:100vh;background:linear-gradient(150deg,#1a0a14,#4a0d2e,#7b1fa2);display:flex;align-items:center;justify-content:center;}
-    .login-box{background:white;border-radius:20px;padding:2.5rem 2rem;width:340px;box-shadow:0 20px 60px rgba(0,0,0,0.4);text-align:center;}
-    .login-box h2{font-family:'Playfair Display',serif;color:var(--text);margin-bottom:0.3rem;font-size:1.6rem;}
-    .login-box p{color:var(--muted);font-size:0.9rem;margin-bottom:1.5rem;}
-    .login-box input{width:100%;padding:0.75rem 1rem;border:2px solid var(--border);border-radius:10px;font-family:'Be Vietnam Pro';font-size:1rem;color:var(--text);outline:none;margin-bottom:1rem;}
+    .login-box{background:#fff;border-radius:20px;padding:2.5rem 2rem;width:320px;box-shadow:0 16px 48px rgba(0,0,0,.35);text-align:center;}
+    .login-box h2{font-family:'Playfair Display',serif;font-size:1.55rem;margin-bottom:.3rem;}
+    .login-box p{color:var(--muted);font-size:.88rem;margin-bottom:1.4rem;}
+    .login-box input{width:100%;padding:.7rem .9rem;border:2px solid var(--border);border-radius:10px;font-family:'Be Vietnam Pro';font-size:1rem;color:var(--text);outline:none;margin-bottom:1rem;}
     .login-box input:focus{border-color:var(--rose);}
+    #loginError{color:var(--red);font-size:.83rem;margin-top:.6rem;min-height:1.2em;}
 
-    /* ADMIN */
-    .admin-wrap{display:none;}
-    header{background:linear-gradient(135deg,#1a0a14,#4a0d2e);color:white;padding:1.2rem 2rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
-    header h1{font-family:'Playfair Display',serif;font-size:1.4rem;}
-    .header-right{display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;}
-    .refresh-pill{display:flex;align-items:center;gap:0.4rem;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:0.3rem 0.9rem;font-size:0.78rem;color:rgba(255,255,255,0.85);}
-    .rdot{width:8px;height:8px;border-radius:50%;background:#4ade80;animation:rdot 1.8s infinite;}
-    .rdot.off{background:#f87171;animation:none;}
-    @keyframes rdot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.7);}}
-    .logout-btn{background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:0.4rem 1rem;cursor:pointer;font-size:0.85rem;font-family:'Be Vietnam Pro';}
-    .logout-btn:hover{background:rgba(255,255,255,0.25);}
+    /* ADMIN WRAP */
+    #adminWrap{display:none;}
 
-    .content{max-width:960px;margin:0 auto;padding:2rem 1.5rem 4rem;}
+    /* HEADER */
+    header{
+      background:linear-gradient(135deg,#1a0a14,#4a0d2e);
+      color:#fff;padding:1rem 1.8rem;
+      display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap;
+    }
+    header h1{font-family:'Playfair Display',serif;font-size:1.35rem;}
+    .header-right{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;}
+    .refresh-pill{
+      display:flex;align-items:center;gap:.35rem;
+      background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);
+      border-radius:20px;padding:.28rem .8rem;font-size:.76rem;color:rgba(255,255,255,.82);
+    }
+    /* Bỏ animation rdot — dùng opacity toggle qua class thôi */
+    .rdot{width:7px;height:7px;border-radius:50%;background:#4ade80;}
+    .rdot.off{background:#f87171;}
+    .logout-btn{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.28);border-radius:8px;padding:.38rem .9rem;cursor:pointer;font-size:.83rem;font-family:'Be Vietnam Pro';}
+    .logout-btn:hover{background:rgba(255,255,255,.24);}
+
+    .content{max-width:920px;margin:0 auto;padding:1.8rem 1.2rem 4rem;}
 
     /* TABS */
-    .tabs{display:flex;gap:0.5rem;margin-bottom:2rem;border-bottom:2px solid var(--border);}
-    .tab-btn{padding:0.65rem 1.4rem;background:none;border:none;cursor:pointer;font-family:'Be Vietnam Pro';font-size:0.95rem;font-weight:600;color:var(--muted);border-radius:8px 8px 0 0;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .2s;}
-    .tab-btn.active{color:var(--rose);border-bottom-color:var(--rose);background:rgba(233,30,99,0.05);}
+    .tabs{display:flex;gap:.4rem;margin-bottom:1.8rem;border-bottom:2px solid var(--border);}
+    .tab-btn{
+      padding:.6rem 1.2rem;background:none;border:none;cursor:pointer;
+      font-family:'Be Vietnam Pro';font-size:.92rem;font-weight:600;
+      color:var(--muted);border-radius:8px 8px 0 0;
+      border-bottom:3px solid transparent;margin-bottom:-2px;transition:color .15s;
+    }
+    .tab-btn.active{color:var(--rose);border-bottom-color:var(--rose);background:rgba(233,30,99,.04);}
     .tab-btn:hover:not(.active){color:var(--text);}
     .tab-panel{display:none;}
     .tab-panel.active{display:block;}
 
     /* CARD */
-    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.8rem;margin-bottom:1.5rem;box-shadow:0 2px 12px rgba(233,30,99,0.06);}
-    .card h3{font-family:'Playfair Display',serif;font-size:1.15rem;color:var(--text);margin-bottom:1.2rem;padding-bottom:0.8rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0.5rem;}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.6rem;margin-bottom:1.4rem;box-shadow:0 2px 10px rgba(233,30,99,.05);}
+    .card h3{font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--text);margin-bottom:1.1rem;padding-bottom:.7rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.45rem;}
 
     /* FORM */
-    .form-row{margin-bottom:1.1rem;}
-    label{display:block;font-size:0.82rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:0.35rem;}
-    input[type="datetime-local"],input[type="text"],input[type="password"]{width:100%;padding:0.7rem 0.9rem;border:2px solid var(--border);border-radius:10px;font-family:'Be Vietnam Pro';font-size:0.95rem;color:var(--text);background:#fff;outline:none;transition:border-color .2s;}
+    .form-row{margin-bottom:1rem;}
+    label{display:block;font-size:.8rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:.3rem;}
+    input[type="datetime-local"],input[type="text"],input[type="password"]{
+      width:100%;padding:.65rem .85rem;border:2px solid var(--border);border-radius:10px;
+      font-family:'Be Vietnam Pro';font-size:.93rem;color:var(--text);background:#fff;outline:none;
+      transition:border-color .18s;
+    }
     input:focus{border-color:var(--rose);}
 
     /* TOGGLE */
-    .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:0.9rem 0;border-bottom:1px solid var(--border);}
+    .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:.85rem 0;border-bottom:1px solid var(--border);}
     .toggle-row:last-child{border:none;}
-    .toggle-label{font-weight:600;font-size:0.95rem;}
-    .toggle-sub{font-size:0.82rem;color:var(--muted);margin-top:0.1rem;}
-    .switch{position:relative;display:inline-block;width:52px;height:28px;flex-shrink:0;}
+    .toggle-label{font-weight:600;font-size:.93rem;}
+    .toggle-sub{font-size:.8rem;color:var(--muted);margin-top:.1rem;}
+    .switch{position:relative;display:inline-block;width:50px;height:26px;flex-shrink:0;}
     .switch input{opacity:0;width:0;height:0;}
-    .slider{position:absolute;cursor:pointer;inset:0;background:#ddd;border-radius:28px;transition:.3s;}
-    .slider:before{content:'';position:absolute;width:22px;height:22px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s;box-shadow:0 2px 6px rgba(0,0,0,.2);}
+    .slider{position:absolute;cursor:pointer;inset:0;background:#ddd;border-radius:26px;transition:.25s;}
+    .slider:before{content:'';position:absolute;width:20px;height:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.25s;box-shadow:0 1px 4px rgba(0,0,0,.18);}
     input:checked+.slider{background:var(--green);}
     input:checked+.slider:before{transform:translateX(24px);}
 
-    /* SORT PICKER (config tab) */
-    .sort-picker{display:flex;gap:0.5rem;margin-top:0.6rem;}
-    .sort-opt{flex:1;padding:0.6rem 0.5rem;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-family:'Be Vietnam Pro';font-size:0.88rem;font-weight:600;color:var(--muted);text-align:center;transition:all .18s;}
+    /* SORT PICKER */
+    .sort-picker{display:flex;gap:.5rem;margin-top:.5rem;}
+    .sort-opt{flex:1;padding:.55rem .4rem;border:2px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-family:'Be Vietnam Pro';font-size:.86rem;font-weight:600;color:var(--muted);text-align:center;transition:border-color .15s,color .15s,background .15s;}
     .sort-opt:hover{border-color:var(--rose);color:var(--rose);}
     .sort-opt.active{background:linear-gradient(135deg,var(--rose),var(--purple));color:#fff;border-color:transparent;}
 
-    /* SORT BAR (status tab) */
-    .sort-bar{display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;}
-    .sort-bar span{font-size:0.82rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
-    .sort-bar-btn{padding:0.35rem 0.9rem;border-radius:20px;border:2px solid var(--border);background:#fff;font-family:'Be Vietnam Pro';font-size:0.82rem;font-weight:700;color:var(--muted);cursor:pointer;transition:all .15s;}
+    /* SORT BAR */
+    .sort-bar{display:flex;align-items:center;gap:.45rem;margin-bottom:.9rem;flex-wrap:wrap;}
+    .sort-bar-lbl{font-size:.8rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+    .sort-bar-btn{padding:.3rem .8rem;border-radius:20px;border:2px solid var(--border);background:#fff;font-family:'Be Vietnam Pro';font-size:.8rem;font-weight:700;color:var(--muted);cursor:pointer;transition:all .13s;}
     .sort-bar-btn.active{background:var(--rose);color:#fff;border-color:var(--rose);}
 
     /* TEAMS */
-    #teamsList{margin-bottom:1rem;}
-    .team-item{display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem;}
+    #teamsList{margin-bottom:.9rem;}
+    .team-item{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;}
     .team-item input{flex:1;}
-    .del-btn{background:#fef2f2;color:var(--red);border:1px solid #fecaca;border-radius:8px;padding:0.45rem 0.8rem;cursor:pointer;font-size:0.85rem;font-family:'Be Vietnam Pro';font-weight:600;white-space:nowrap;transition:background .2s;}
+    .del-btn{background:#fef2f2;color:var(--red);border:1px solid #fecaca;border-radius:8px;padding:.4rem .7rem;cursor:pointer;font-size:.82rem;font-family:'Be Vietnam Pro';font-weight:600;white-space:nowrap;}
     .del-btn:hover{background:#fee2e2;}
-    .add-team-btn{background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0;border-radius:8px;padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;font-family:'Be Vietnam Pro';font-weight:600;transition:background .2s;}
+    .add-team-btn{background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0;border-radius:8px;padding:.45rem .9rem;cursor:pointer;font-size:.82rem;font-family:'Be Vietnam Pro';font-weight:600;}
     .add-team-btn:hover{background:#dcfce7;}
 
     /* BUTTONS */
-    .btn-save{background:linear-gradient(135deg,var(--rose),var(--purple));color:white;border:none;border-radius:10px;cursor:pointer;font-family:'Be Vietnam Pro';font-size:0.95rem;font-weight:700;padding:0.75rem 1.8rem;box-shadow:0 4px 14px rgba(233,30,99,0.3);transition:transform .15s;}
+    .btn-save{
+      background:linear-gradient(135deg,var(--rose),var(--purple));
+      color:#fff;border:none;border-radius:10px;cursor:pointer;
+      font-family:'Be Vietnam Pro';font-size:.93rem;font-weight:700;
+      padding:.7rem 1.6rem;box-shadow:0 3px 12px rgba(233,30,99,.28);
+      transition:transform .13s,opacity .13s;
+    }
     .btn-save:hover{transform:translateY(-2px);}
-    .btn-save:disabled{opacity:.55;cursor:not-allowed;transform:none;}
-    .save-feedback{display:inline-block;margin-left:1rem;font-size:0.9rem;font-weight:600;color:var(--green);opacity:0;transition:opacity .3s;}
+    .btn-save:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+    .save-feedback{display:inline-block;margin-left:.8rem;font-size:.88rem;font-weight:600;color:var(--green);opacity:0;transition:opacity .25s;}
     .save-feedback.show{opacity:1;}
 
-    /* STATUS BADGE */
-    .status-badge{display:inline-flex;align-items:center;gap:0.35rem;padding:0.3rem 0.8rem;border-radius:100px;font-size:0.8rem;font-weight:700;}
+    /* STATUS */
+    .status-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.28rem .75rem;border-radius:100px;font-size:.78rem;font-weight:700;}
     .badge-open{background:#dcfce7;color:var(--green);}
     .badge-closed{background:#fef2f2;color:var(--red);}
     .badge-disabled{background:#fef9c3;color:#92400e;}
 
-    /* AUTO-REFRESH BAR */
-    .refresh-bar{display:flex;align-items:center;justify-content:space-between;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:0.8rem 1.2rem;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap;}
-    .refresh-bar-info{flex:1;}
-    .refresh-bar-label{font-size:0.88rem;font-weight:700;color:var(--green);display:flex;align-items:center;gap:0.4rem;}
-    .refresh-bar-count{font-size:0.78rem;color:var(--muted);margin-top:0.2rem;}
+    /* REFRESH BAR */
+    .refresh-bar{
+      display:flex;align-items:center;justify-content:space-between;
+      background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;
+      padding:.7rem 1.1rem;margin-bottom:1.4rem;gap:.8rem;flex-wrap:wrap;
+    }
+    .refresh-bar-label{font-size:.86rem;font-weight:700;color:var(--green);}
+    .refresh-bar-count{font-size:.75rem;color:var(--muted);margin-top:.15rem;}
+
+    /* STATS */
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.9rem;margin-bottom:1.4rem;}
+    .stat-box{background:linear-gradient(135deg,#fff5f8,#fce4ec);border:1px solid var(--border);border-radius:12px;padding:.9rem;text-align:center;}
+    .stat-num{font-size:1.9rem;font-weight:900;color:var(--rose);font-family:'Playfair Display';}
+    .stat-label{font-size:.75rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-top:.15rem;}
 
     /* TABLE */
     .table-wrap{overflow-x:auto;}
-    table{width:100%;border-collapse:collapse;font-size:0.9rem;}
-    th{text-align:left;padding:0.65rem 0.9rem;font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700;background:var(--bg);border-bottom:2px solid var(--border);}
-    td{padding:0.65rem 0.9rem;border-bottom:1px solid rgba(233,30,99,0.07);}
+    table{width:100%;border-collapse:collapse;font-size:.88rem;}
+    th{text-align:left;padding:.55rem .8rem;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700;background:var(--bg);border-bottom:2px solid var(--border);}
+    td{padding:.58rem .8rem;border-bottom:1px solid rgba(233,30,99,.06);}
     tr:hover td{background:#fef5f8;}
 
-    /* STATS */
-    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:1.5rem;}
-    .stat-box{background:linear-gradient(135deg,#fff5f8,#fce4ec);border:1px solid var(--border);border-radius:12px;padding:1rem;text-align:center;}
-    .stat-num{font-size:2rem;font-weight:900;color:var(--rose);font-family:'Playfair Display';}
-    .stat-label{font-size:0.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-top:0.2rem;}
-
     /* DEBUG */
-    #debugOutput{margin-top:1rem;padding:1rem;background:#0f172a;color:#4ade80;border-radius:10px;font-size:0.8rem;min-height:60px;white-space:pre-wrap;word-break:break-all;display:none;}
+    #debugOutput{margin-top:.9rem;padding:.9rem;background:#0f172a;color:#4ade80;border-radius:10px;font-size:.78rem;min-height:56px;white-space:pre-wrap;word-break:break-all;display:none;}
   </style>
 </head>
 <body>
@@ -164,16 +188,17 @@
   <div class="login-box">
     <h2>🔐 Admin Panel</h2>
     <p>Nhập mật khẩu để tiếp tục</p>
-    <input type="password" id="passwordInput" placeholder="Mật khẩu" onkeydown="if(event.key==='Enter')login()">
+    <input type="password" id="passwordInput" placeholder="Mật khẩu"
+           onkeydown="if(event.key==='Enter')login()">
     <button class="btn-save" style="width:100%" onclick="login()">Đăng Nhập</button>
-    <div id="loginError" style="color:#dc2626;font-size:0.85rem;margin-top:0.8rem;"></div>
+    <div id="loginError"></div>
   </div>
 </div>
 
-<!-- ADMIN PANEL -->
-<div class="admin-wrap" id="adminWrap">
+<!-- ADMIN -->
+<div id="adminWrap">
   <header>
-    <h1>⚙️ Admin Panel – Karaoke 8/3</h1>
+    <h1>⚙️ Admin – Karaoke 8/3</h1>
     <div class="header-right">
       <div class="refresh-pill">
         <div class="rdot" id="rdot"></div>
@@ -184,20 +209,19 @@
   </header>
 
   <div class="content">
-    <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('status',this)">📊 Trạng thái</button>
-      <button class="tab-btn" onclick="switchTab('config',this)">⚙️ Cấu hình</button>
-      <button class="tab-btn" onclick="switchTab('votes',this)">🗳️ Lượt vote</button>
+
+    <div class="tabs" id="tabBar">
+      <button class="tab-btn active" data-tab="status">📊 Trạng thái</button>
+      <button class="tab-btn"        data-tab="config">⚙️ Cấu hình</button>
+      <button class="tab-btn"        data-tab="votes" >🗳️ Lượt vote</button>
     </div>
 
-    <!-- ── TAB: STATUS ── -->
+    <!-- STATUS -->
     <div class="tab-panel active" id="tab-status">
-
-      <!-- Auto-refresh control -->
       <div class="refresh-bar">
-        <div class="refresh-bar-info">
-          <div class="refresh-bar-label">🔄 Tự động làm mới dữ liệu mỗi 2 giây</div>
-          <div class="refresh-bar-count" id="refreshCount">Chờ làm mới lần đầu...</div>
+        <div>
+          <div class="refresh-bar-label">🔄 Tự động làm mới mỗi 3 giây</div>
+          <div class="refresh-bar-count" id="refreshCount">Chờ làm mới...</div>
         </div>
         <label class="switch">
           <input type="checkbox" id="autoRefreshToggle" checked onchange="toggleAutoRefresh(this.checked)">
@@ -205,13 +229,13 @@
         </label>
       </div>
 
-      <div id="statusBadgeWrap" style="margin-bottom:1.2rem;"></div>
+      <div id="statusBadgeWrap" style="margin-bottom:1.1rem"></div>
       <div class="stats-grid" id="statsGrid"></div>
 
       <div class="card">
         <h3>📋 Bảng xếp hạng</h3>
         <div class="sort-bar">
-          <span>Sắp xếp:</span>
+          <span class="sort-bar-lbl">Sắp xếp:</span>
           <button class="sort-bar-btn active" id="sortBtnAvg"   onclick="setViewSort('avg')">⭐ Điểm TB</button>
           <button class="sort-bar-btn"        id="sortBtnVotes" onclick="setViewSort('votes')">🗳️ Lượt vote</button>
         </div>
@@ -224,56 +248,42 @@
       </div>
     </div>
 
-    <!-- ── TAB: CONFIG ── -->
+    <!-- CONFIG -->
     <div class="tab-panel" id="tab-config">
 
-      <!-- Voting controls -->
       <div class="card">
         <h3>🎛️ Điều khiển bình chọn</h3>
-
         <div class="toggle-row">
           <div>
             <div class="toggle-label">Cho phép bình chọn</div>
             <div class="toggle-sub">Bật để mở, tắt để khoá tất cả bình chọn ngay lập tức</div>
           </div>
-          <label class="switch">
-            <input type="checkbox" id="votingEnabledToggle">
-            <span class="slider"></span>
-          </label>
+          <label class="switch"><input type="checkbox" id="votingEnabledToggle"><span class="slider"></span></label>
         </div>
-
         <div class="toggle-row">
           <div>
             <div class="toggle-label">Giới hạn bình chọn theo thiết bị</div>
-            <div class="toggle-sub">
-              <b>BẬT</b>: mỗi thiết bị chỉ chấm 1 đội 1 lần &nbsp;·&nbsp;
-              <b>TẮT</b>: bình chọn tự do không giới hạn
-            </div>
+            <div class="toggle-sub"><b>BẬT</b>: mỗi thiết bị chỉ chấm 1 đội 1 lần &nbsp;·&nbsp; <b>TẮT</b>: tự do</div>
           </div>
-          <label class="switch">
-            <input type="checkbox" id="restrictVoteToggle">
-            <span class="slider"></span>
-          </label>
+          <label class="switch"><input type="checkbox" id="restrictVoteToggle"><span class="slider"></span></label>
         </div>
       </div>
 
-      <!-- Sort mode for result display -->
       <div class="card">
-        <h3>📊 Chế độ hiển thị kết quả cho người dùng</h3>
-        <p style="font-size:0.88rem;color:var(--muted);margin-bottom:0.8rem;">
-          Chọn cách sắp xếp bảng xếp hạng hiển thị trên trang bình chọn sau khi kết thúc.
+        <h3>📊 Chế độ hiển thị kết quả</h3>
+        <p style="font-size:.85rem;color:var(--muted);margin-bottom:.7rem">
+          Chọn cách sắp xếp bảng xếp hạng trên trang bình chọn sau khi kết thúc.
         </p>
         <div class="sort-picker">
           <button class="sort-opt" id="sortOptAvg"   onclick="selectSortMode('avg')">⭐ Điểm TB cao → thấp</button>
           <button class="sort-opt" id="sortOptVotes" onclick="selectSortMode('votes')">🗳️ Lượt vote cao → thấp</button>
         </div>
-        <div style="margin-top:1rem;">
+        <div style="margin-top:.9rem">
           <button class="btn-save" onclick="saveSortMode(this)">Lưu chế độ hiển thị</button>
           <span class="save-feedback" id="sortFeedback">✅ Đã lưu!</span>
         </div>
       </div>
 
-      <!-- End time -->
       <div class="card">
         <h3>⏰ Thời gian kết thúc bình chọn</h3>
         <div class="form-row">
@@ -284,34 +294,34 @@
         <span class="save-feedback" id="endTimeFeedback">✅ Đã lưu!</span>
       </div>
 
-      <!-- Teams -->
       <div class="card">
         <h3>🎤 Danh sách đội thi</h3>
         <div id="teamsList"></div>
         <button class="add-team-btn" onclick="addTeam()">＋ Thêm đội</button>
-        <div style="margin-top:1.2rem;">
+        <div style="margin-top:1rem">
           <button class="btn-save" onclick="saveTeams(this)">Lưu danh sách đội</button>
           <span class="save-feedback" id="teamsFeedback">✅ Đã lưu!</span>
         </div>
       </div>
 
-      <!-- Debug -->
       <div class="card">
         <h3>🔧 Kiểm tra kết nối API</h3>
-        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem;">
-          Bấm nút bên dưới để test xem Apps Script có nhận đúng request không.
+        <p style="font-size:.83rem;color:var(--muted);margin-bottom:.9rem">
+          Test xem Apps Script có nhận đúng request không.
         </p>
         <button class="btn-save" style="background:linear-gradient(135deg,#0f766e,#0369a1)" onclick="testAPI()">
-          🧪 Test gửi lên API
+          🧪 Test API
         </button>
         <pre id="debugOutput"></pre>
       </div>
     </div>
 
-    <!-- ── TAB: VOTES ── -->
+    <!-- VOTES -->
     <div class="tab-panel" id="tab-votes">
       <div class="card">
-        <h3>🗳️ Toàn bộ lượt bình chọn <span style="font-size:0.8rem;font-weight:400;color:var(--muted)">(mới nhất trên cùng)</span></h3>
+        <h3>🗳️ Toàn bộ lượt bình chọn
+          <span style="font-size:.78rem;font-weight:400;color:var(--muted)">(mới nhất trên cùng)</span>
+        </h3>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Thời gian</th><th>Đội thi</th><th>Điểm</th><th>Voter ID</th></tr></thead>
@@ -327,92 +337,167 @@
 <script>
 const API_URL = CONFIG.API_URL;
 
+/* ── DOM CACHE ── */
+const $ = id => document.getElementById(id);
+const DOM = {
+  loginPage:    $("loginPage"),
+  adminWrap:    $("adminWrap"),
+  pwInput:      $("passwordInput"),
+  loginErr:     $("loginError"),
+  rdot:         $("rdot"),
+  rdotLabel:    $("rdotLabel"),
+  refreshCount: $("refreshCount"),
+  statusBadge:  $("statusBadgeWrap"),
+  statsGrid:    $("statsGrid"),
+  summaryBody:  $("summaryBody"),
+  voteTable:    $("voteTable"),
+  sortBtnAvg:   $("sortBtnAvg"),
+  sortBtnVotes: $("sortBtnVotes"),
+  sortOptAvg:   $("sortOptAvg"),
+  sortOptVotes: $("sortOptVotes"),
+  endTimeInput: $("endTimeInput"),
+  teamsList:    $("teamsList"),
+  votingTog:    $("votingEnabledToggle"),
+  restrictTog:  $("restrictVoteToggle"),
+  arToggle:     $("autoRefreshToggle"),
+  debugOut:     $("debugOutput"),
+};
+
+/* Cache tab-related NodeLists 1 lần */
+const tabBtns   = Array.from(document.querySelectorAll(".tab-btn"));
+const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
+
+/* ── TABS — event delegation ── */
+$("tabBar").addEventListener("click", e => {
+  const btn = e.target.closest(".tab-btn");
+  if (!btn) return;
+  const id = btn.dataset.tab;
+  tabBtns.forEach(b => b.classList.remove("active"));
+  tabPanels.forEach(p => p.classList.remove("active"));
+  btn.classList.add("active");
+  $("tab-" + id).classList.add("active");
+  // Nếu chuyển sang votes, load dữ liệu vote
+  if (id === "votes" && _cachedRows) renderVoteTable(_cachedRows);
+});
+
 /* ── LOGIN ── */
 function login() {
-  if (document.getElementById("passwordInput").value === "1908") {
-    document.getElementById("loginPage").style.display = "none";
-    document.getElementById("adminWrap").style.display = "block";
-    CONFIG.loadFromAPI(initAdmin);
+  if (DOM.pwInput.value === "1908") {
+    DOM.loginPage.style.display = "none";
+    DOM.adminWrap.style.display = "block";
+    CONFIG.loadFromAPI(data => initAdmin(data));
   } else {
-    document.getElementById("loginError").textContent = "❌ Sai mật khẩu!";
+    DOM.loginErr.textContent = "❌ Sai mật khẩu!";
   }
 }
 
 function logout() {
   stopAutoRefresh();
-  document.getElementById("loginPage").style.display = "flex";
-  document.getElementById("adminWrap").style.display = "none";
-  document.getElementById("passwordInput").value = "";
-}
-
-/* ── TABS ── */
-function switchTab(id, btn) {
-  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
-  document.getElementById("tab-" + id).classList.add("active");
-  if (btn) btn.classList.add("active");
+  DOM.loginPage.style.display = "flex";
+  DOM.adminWrap.style.display = "none";
+  DOM.pwInput.value = "";
+  DOM.loginErr.textContent = "";
 }
 
 /* ── INIT ── */
-function initAdmin() {
+function initAdmin(initialData) {
   loadConfigUI();
-  loadStatus();
-  loadAllVotes();
 
-  document.getElementById("votingEnabledToggle").addEventListener("change", function() {
+  // Nếu đã có data từ boot fetch → dùng lại, không gọi API lần nữa
+  if (initialData) applyFetchedData(initialData);
+  else refreshData();
+
+  DOM.votingTog.addEventListener("change", function() {
     CONFIG.VOTING_ENABLED = this.checked;
-    pushSettings({ voting_enabled: this.checked ? "true" : "false" }, null, null);
-    loadStatus();
+    pushSettings({ voting_enabled: this.checked ? "true" : "false" });
+    updateBadge();
   });
 
-  document.getElementById("restrictVoteToggle").addEventListener("change", function() {
+  DOM.restrictTog.addEventListener("change", function() {
     CONFIG.RESTRICT_VOTE = this.checked;
-    pushSettings({ restrict_vote: this.checked ? "true" : "false" }, null, null);
+    pushSettings({ restrict_vote: this.checked ? "true" : "false" });
   });
 
   startAutoRefresh();
 }
 
-/* ── AUTO-REFRESH ── */
+/* ── AUTO-REFRESH — interval 3s (3s nhẹ hơn 2s, đủ dùng) ── */
 let _arTimer = null, _arCount = 0;
+let _cachedSummary = null, _cachedRows = null;
 
 function startAutoRefresh() {
   if (_arTimer) clearInterval(_arTimer);
-  _arTimer = setInterval(() => {
-    _arCount++;
-    document.getElementById("refreshCount").textContent =
-      "Lần thứ " + _arCount + " – " + new Date().toLocaleTimeString("vi-VN");
-    loadStatus();
-    loadAllVotes();
-  }, 2000);
-  document.getElementById("rdot").classList.remove("off");
-  document.getElementById("rdotLabel").textContent = "Auto-refresh: BẬT";
+  _arTimer = setInterval(refreshData, 3000);
+  DOM.rdot.classList.remove("off");
+  DOM.rdotLabel.textContent = "Auto-refresh: BẬT";
 }
 
 function stopAutoRefresh() {
   if (_arTimer) { clearInterval(_arTimer); _arTimer = null; }
-  document.getElementById("rdot").classList.add("off");
-  document.getElementById("rdotLabel").textContent = "Auto-refresh: TẮT";
+  DOM.rdot.classList.add("off");
+  DOM.rdotLabel.textContent = "Auto-refresh: TẮT";
 }
 
-function toggleAutoRefresh(on) {
-  on ? startAutoRefresh() : stopAutoRefresh();
+function toggleAutoRefresh(on) { on ? startAutoRefresh() : stopAutoRefresh(); }
+
+/* 1 fetch duy nhất mỗi cycle — không double-fetch ── */
+function refreshData() {
+  fetch(API_URL)
+    .then(r => r.json())
+    .then(data => {
+      _arCount++;
+      DOM.refreshCount.textContent =
+        "Lần thứ " + _arCount + " – " + new Date().toLocaleTimeString("vi-VN");
+      applyFetchedData(data);
+    })
+    .catch(() => {});
 }
 
-/* ── SORT MODE ── */
+function applyFetchedData(data) {
+  if (!data) return;
+  // Sync settings từ API
+  if (data.settings) {
+    const s = data.settings;
+    if (s.sort_mode) CONFIG.SORT_MODE = s.sort_mode;
+  }
+  if (data.status === "ok") {
+    _cachedSummary = data.summary;
+    _cachedRows    = data.rows;
+    updateBadge();
+    renderStatsAndTable(data.summary);
+    // Chỉ render vote table nếu tab đang active
+    if ($("tab-votes").classList.contains("active")) renderVoteTable(data.rows);
+  }
+}
+
+/* ── STATUS BADGE ── */
+function updateBadge() {
+  const now = Date.now(), end = new Date(CONFIG.END_TIME).getTime();
+  let html;
+  if (!CONFIG.VOTING_ENABLED)
+    html = `<span class="status-badge badge-disabled">⚠️ Bình chọn đã bị TẮT thủ công</span>`;
+  else if (now < end) {
+    const d = end - now, h = Math.floor(d/3600000), m = Math.floor((d%3600000)/60000);
+    html = `<span class="status-badge badge-open">🟢 Đang mở – Còn ${h}h ${m}m</span>`;
+  } else
+    html = `<span class="status-badge badge-closed">🔴 Đã kết thúc bình chọn</span>`;
+  DOM.statusBadge.innerHTML = html;
+}
+
+/* ── SORT ── */
 let _viewSort = "avg";
 
 function setViewSort(mode) {
   _viewSort = mode;
-  document.getElementById("sortBtnAvg").classList.toggle("active", mode === "avg");
-  document.getElementById("sortBtnVotes").classList.toggle("active", mode === "votes");
-  if (window._cachedSummary) renderSummaryTable(window._cachedSummary);
+  DOM.sortBtnAvg.classList.toggle("active", mode === "avg");
+  DOM.sortBtnVotes.classList.toggle("active", mode === "votes");
+  if (_cachedSummary) renderSummaryTable(_cachedSummary);
 }
 
 function selectSortMode(mode) {
   CONFIG.SORT_MODE = mode;
-  document.getElementById("sortOptAvg").classList.toggle("active", mode === "avg");
-  document.getElementById("sortOptVotes").classList.toggle("active", mode === "votes");
+  DOM.sortOptAvg.classList.toggle("active", mode === "avg");
+  DOM.sortOptVotes.classList.toggle("active", mode === "votes");
   setViewSort(mode);
 }
 
@@ -420,82 +505,138 @@ function saveSortMode(btnEl) {
   pushSettings({ sort_mode: CONFIG.SORT_MODE }, "sortFeedback", btnEl);
 }
 
+/* ── RENDER STATS + TABLE ── */
+function renderStatsAndTable(d) {
+  const teams = Object.keys(d);
+  let total = 0;
+  teams.forEach(t => total += d[t].votes);
+
+  DOM.statsGrid.innerHTML =
+    `<div class="stat-box"><div class="stat-num">${teams.length}</div><div class="stat-label">Đội thi</div></div>` +
+    `<div class="stat-box"><div class="stat-num">${total}</div><div class="stat-label">Tổng lượt vote</div></div>`;
+
+  renderSummaryTable(d);
+}
+
+function renderSummaryTable(d) {
+  const arr = Object.keys(d).map(t => ({ name:t, avg:parseFloat(d[t].average), votes:d[t].votes }));
+  arr.sort(_viewSort === "votes" ? (a,b)=>b.votes-a.votes : (a,b)=>b.avg-a.avg);
+
+  const medals = ["🥇","🥈","🥉"];
+  const frag = document.createDocumentFragment();
+  arr.forEach((t, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td>${medals[i] || (i+1)}</td>` +
+      `<td>${t.name}</td>` +
+      `<td><strong>${t.avg.toFixed(2)}</strong></td>` +
+      `<td>${t.votes}</td>`;
+    frag.appendChild(tr);
+  });
+  DOM.summaryBody.innerHTML = "";
+  DOM.summaryBody.appendChild(frag);
+}
+
+/* ── RENDER VOTE TABLE ── */
+function renderVoteTable(rows) {
+  if (!rows || !rows.length) {
+    DOM.voteTable.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;padding:1.4rem">Chưa có lượt vote nào</td></tr>';
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  // Reverse: mới nhất trên cùng (slice để không mutate cache)
+  rows.slice().reverse().forEach(r => {
+    const tr = document.createElement("tr");
+    const time = r.time ? new Date(r.time).toLocaleString("vi-VN") : "";
+    tr.innerHTML =
+      `<td>${time}</td><td>${r.team}</td><td>${r.score}</td>` +
+      `<td style="font-size:.74rem;color:var(--muted)">${r.voter}</td>`;
+    frag.appendChild(tr);
+  });
+  DOM.voteTable.innerHTML = "";
+  DOM.voteTable.appendChild(frag);
+}
+
 /* ── LOAD CONFIG UI ── */
 function loadConfigUI() {
   try {
     const dt = new Date(CONFIG.END_TIME);
-    document.getElementById("endTimeInput").value =
+    DOM.endTimeInput.value =
       new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   } catch(e) {}
-
-  document.getElementById("votingEnabledToggle").checked = CONFIG.VOTING_ENABLED;
-  document.getElementById("restrictVoteToggle").checked  = CONFIG.RESTRICT_VOTE;
+  DOM.votingTog.checked  = CONFIG.VOTING_ENABLED;
+  DOM.restrictTog.checked = CONFIG.RESTRICT_VOTE;
   selectSortMode(CONFIG.SORT_MODE || "avg");
   renderTeamsList(CONFIG.TEAMS.slice());
 }
 
 /* ── PUSH SETTINGS ── */
 function pushSettings(payload, feedbackId, btnEl) {
-  const btn = btnEl || null;
-  const orig = btn ? btn.textContent : "";
-  if (btn) { btn.disabled = true; btn.textContent = "⏳ Đang lưu..."; }
+  const orig = btnEl ? btnEl.textContent : "";
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = "⏳ Đang lưu..."; }
 
-  fetch(API_URL, { method: "POST", body: JSON.stringify({ updateSettings: payload }) })
+  fetch(API_URL, { method:"POST", body: JSON.stringify({ updateSettings: payload }) })
     .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(data => {
-      if (btn) { btn.disabled = false; btn.textContent = orig; }
-      if (data.status === "settings_updated") {
-        if (feedbackId) showFeedback(feedbackId);
-      } else {
-        alert("❌ Lỗi: " + (data.message || data.status) + "\n\n👉 Deploy lại Apps Script (New version).");
-      }
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = orig; }
+      if (data.status === "settings_updated") { if (feedbackId) showFeedback(feedbackId); }
+      else alert("❌ Lỗi: " + (data.message || data.status) + "\n\n👉 Deploy lại Apps Script.");
     })
     .catch(err => {
-      if (btn) { btn.disabled = false; btn.textContent = orig; }
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = orig; }
       alert("❌ Không kết nối được.\n" + err.message);
     });
 }
 
+function showFeedback(id) {
+  const el = $(id); if (!el) return;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 2500);
+}
+
 /* ── TEST API ── */
 function testAPI() {
-  const out = document.getElementById("debugOutput");
-  out.style.display = "block"; out.style.color = "#4ade80";
-  out.textContent = "⏳ Đang test...";
+  DOM.debugOut.style.display = "block";
+  DOM.debugOut.style.color = "#4ade80";
+  DOM.debugOut.textContent = "⏳ Đang test...";
   fetch(API_URL)
-    .then(r => r.json())
+    .then(r=>r.json())
     .then(data => {
-      out.textContent = "✅ GET:\n" + JSON.stringify(data.settings || {}, null, 2);
-      const tv = data.settings && data.settings.teams ? data.settings.teams.join(",") : "test";
-      return fetch(API_URL, { method:"POST", body: JSON.stringify({ updateSettings: { teams: tv } }) });
+      DOM.debugOut.textContent = "✅ GET:\n" + JSON.stringify(data.settings||{}, null, 2);
+      const tv = data.settings&&data.settings.teams ? data.settings.teams.join(",") : "test";
+      return fetch(API_URL, { method:"POST", body: JSON.stringify({ updateSettings:{ teams:tv } }) });
     })
-    .then(r => r.json())
+    .then(r=>r.json())
     .then(d2 => {
-      out.textContent += "\n\n" + (d2.status === "settings_updated" ? "✅" : "❌") + " POST:\n" + JSON.stringify(d2, null, 2);
-      if (d2.status !== "settings_updated") { out.style.color = "#f87171"; out.textContent += "\n\n⚠️ Deploy lại Apps Script!"; }
+      DOM.debugOut.textContent += "\n\n" + (d2.status==="settings_updated"?"✅":"❌") + " POST:\n" + JSON.stringify(d2,null,2);
+      if (d2.status!=="settings_updated"){ DOM.debugOut.style.color="#f87171"; DOM.debugOut.textContent+="\n\n⚠️ Deploy lại Apps Script!"; }
     })
-    .catch(err => { out.style.color="#f87171"; out.textContent="❌ "+err.message; });
+    .catch(err=>{ DOM.debugOut.style.color="#f87171"; DOM.debugOut.textContent="❌ "+err.message; });
 }
 
 /* ── TEAMS ── */
 function createTeamRow(v) {
-  const d = document.createElement("div"); d.className = "team-item";
+  const div = document.createElement("div"); div.className = "team-item";
   const inp = document.createElement("input"); inp.type="text"; inp.value=v||""; inp.placeholder="Tên đội";
   const btn = document.createElement("button"); btn.type="button"; btn.className="del-btn"; btn.textContent="✕ Xoá";
-  btn.onclick = () => d.remove();
-  d.appendChild(inp); d.appendChild(btn); return d;
+  btn.onclick = () => div.remove();
+  div.appendChild(inp); div.appendChild(btn); return div;
 }
 
 function renderTeamsList(teams) {
-  const c = document.getElementById("teamsList"); c.innerHTML = "";
-  (teams||[]).forEach(t => c.appendChild(createTeamRow(t)));
+  const c = DOM.teamsList; c.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  (teams||[]).forEach(t => frag.appendChild(createTeamRow(t)));
+  c.appendChild(frag);
 }
 
 function addTeam() {
-  const row = createTeamRow(""); document.getElementById("teamsList").appendChild(row); row.querySelector("input").focus();
+  const row = createTeamRow(""); DOM.teamsList.appendChild(row); row.querySelector("input").focus();
 }
 
 function saveTeams(btnEl) {
-  const teams = Array.from(document.querySelectorAll("#teamsList .team-item input")).map(i=>i.value.trim()).filter(Boolean);
+  const teams = Array.from(DOM.teamsList.querySelectorAll(".team-item input"))
+    .map(i=>i.value.trim()).filter(Boolean);
   if (!teams.length) { alert("Cần ít nhất 1 đội thi."); return; }
   CONFIG.TEAMS = teams;
   pushSettings({ teams: teams.join(",") }, "teamsFeedback", btnEl);
@@ -503,85 +644,12 @@ function saveTeams(btnEl) {
 
 /* ── END TIME ── */
 function saveEndTime(btnEl) {
-  const val = document.getElementById("endTimeInput").value;
+  const val = DOM.endTimeInput.value;
   if (!val) { alert("Vui lòng chọn thời gian."); return; }
   const v = val.length === 16 ? val + ":00" : val;
   CONFIG.END_TIME = v;
   pushSettings({ end_time: v }, "endTimeFeedback", btnEl);
-  loadStatus();
-}
-
-function showFeedback(id) {
-  const el = document.getElementById(id); if (!el) return;
-  el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 2500);
-}
-
-/* ── STATUS ── */
-function loadStatus() {
-  const now = new Date(), end = new Date(CONFIG.END_TIME);
-  let badge;
-  if (!CONFIG.VOTING_ENABLED)
-    badge = `<span class="status-badge badge-disabled">⚠️ Bình chọn đã bị TẮT thủ công</span>`;
-  else if (now < end) {
-    const diff=end-now, h=Math.floor(diff/3600000), m=Math.floor((diff%3600000)/60000);
-    badge = `<span class="status-badge badge-open">🟢 Đang mở – Còn ${h}h ${m}m</span>`;
-  } else
-    badge = `<span class="status-badge badge-closed">🔴 Đã kết thúc bình chọn</span>`;
-  document.getElementById("statusBadgeWrap").innerHTML = badge;
-
-  fetch(API_URL)
-    .then(r => r.json())
-    .then(data => {
-      if (data.status !== "ok") return;
-      const d = data.summary;
-      window._cachedSummary = d;
-      let total=0; Object.keys(d).forEach(t => total += d[t].votes);
-      document.getElementById("statsGrid").innerHTML = `
-        <div class="stat-box"><div class="stat-num">${Object.keys(d).length}</div><div class="stat-label">Đội thi</div></div>
-        <div class="stat-box"><div class="stat-num">${total}</div><div class="stat-label">Tổng lượt vote</div></div>
-      `;
-      renderSummaryTable(d);
-    })
-    .catch(()=>{});
-}
-
-function renderSummaryTable(d) {
-  const arr = Object.keys(d).map(t => ({ name:t, avg:parseFloat(d[t].average), votes:d[t].votes }));
-  arr.sort(_viewSort === "votes" ? (a,b)=>b.votes-a.votes : (a,b)=>b.avg-a.avg);
-  const tbody = document.getElementById("summaryBody"); tbody.innerHTML = "";
-  arr.forEach((t,i) => {
-    tbody.innerHTML += `<tr>
-      <td>${["🥇","🥈","🥉"][i]||(i+1)}</td>
-      <td>${t.name}</td>
-      <td><strong>${t.avg.toFixed(2)}</strong></td>
-      <td>${t.votes}</td>
-    </tr>`;
-  });
-}
-
-/* ── ALL VOTES ── */
-function loadAllVotes() {
-  fetch(API_URL)
-    .then(r => r.json())
-    .then(data => {
-      const tbody = document.getElementById("voteTable");
-      if (!data.rows || !data.rows.length) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;padding:1.5rem">Chưa có lượt vote nào</td></tr>';
-        return;
-      }
-      tbody.innerHTML = "";
-      [...data.rows].reverse().forEach(r => {
-        const time = r.time ? new Date(r.time).toLocaleString("vi-VN") : "";
-        tbody.innerHTML += `<tr>
-          <td>${time}</td><td>${r.team}</td><td>${r.score}</td>
-          <td style="font-size:0.76rem;color:var(--muted)">${r.voter}</td>
-        </tr>`;
-      });
-    })
-    .catch(()=>{
-      document.getElementById("voteTable").innerHTML =
-        '<tr><td colspan="4" style="text-align:center;color:#999;padding:1.5rem">Không tải được dữ liệu</td></tr>';
-    });
+  updateBadge();
 }
 </script>
 </body>
