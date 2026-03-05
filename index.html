@@ -20,6 +20,12 @@
     RESTRICT_VOTE: false,
     SORT_MODE: "avg"
   };
+  // Parse boolean từ Google Sheet (có thể trả về string "TRUE"/"FALSE" thay vì boolean)
+  function _parseBool(val) {
+    if (typeof val === "boolean") return val;
+    return String(val).toLowerCase() === "true";
+  }
+
   CONFIG.loadFromAPI = function(callback) {
     fetch(CONFIG.API_URL)
       .then(r => r.json())
@@ -28,10 +34,12 @@
           const s = data.settings;
           if (s.end_time) CONFIG.END_TIME = s.end_time;
           if (Array.isArray(s.teams) && s.teams.length > 0) CONFIG.TEAMS = s.teams;
-          if (typeof s.voting_enabled === "boolean") CONFIG.VOTING_ENABLED = s.voting_enabled;
-          if (typeof s.restrict_vote  === "boolean") CONFIG.RESTRICT_VOTE  = s.restrict_vote;
+          // Dùng _parseBool — xử lý đúng cả boolean lẫn chuỗi "TRUE"/"true" từ Google Sheet
+          if (s.voting_enabled !== undefined) CONFIG.VOTING_ENABLED = _parseBool(s.voting_enabled);
+          if (s.restrict_vote  !== undefined) CONFIG.RESTRICT_VOTE  = _parseBool(s.restrict_vote);
           if (s.sort_mode) CONFIG.SORT_MODE = s.sort_mode;
         }
+        console.log("[CONFIG] loaded → RESTRICT_VOTE:", CONFIG.RESTRICT_VOTE, "| VOTING_ENABLED:", CONFIG.VOTING_ENABLED);
       })
       .catch(err => console.warn("[CONFIG] Không tải được settings:", err))
       .finally(() => { if (callback) callback(); });
@@ -356,18 +364,22 @@ function submitVote() {
   if (!score || score < 1 || score > 10) { msg.className="msg-error"; msg.textContent="⚠️ Vui lòng chọn điểm (1–10)."; return; }
 
   // Tạo voter ID
-  // Nếu restrict_vote=true → dùng deviceID cố định lưu localStorage để chặn vote trùng
-  // Nếu restrict_vote=false → tạo ID ngẫu nhiên mỗi lần (tự do)
-  let voter;
-  if (CONFIG.RESTRICT_VOTE) {
-    const KEY = "karaoke_voter_id";
-    if (!localStorage.getItem(KEY)) {
-      localStorage.setItem(KEY, "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2,7));
-    }
-    voter = localStorage.getItem(KEY);
-  } else {
-    voter = "anon_" + Date.now() + "_" + Math.random().toString(36).slice(2,7);
+  // RESTRICT_VOTE=true  → dùng deviceID CỐ ĐỊNH lưu localStorage (1 thiết bị = 1 lần / 1 đội)
+  // RESTRICT_VOTE=false → tạo ID ngẫu nhiên mỗi lần (tự do)
+  const VOTER_KEY = "karaoke_device_id";
+  // Luôn tạo và lưu deviceID cố định (dùng cho cả 2 mode để debug)
+  if (!localStorage.getItem(VOTER_KEY)) {
+    localStorage.setItem(VOTER_KEY, "dev_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9));
   }
+  const deviceId = localStorage.getItem(VOTER_KEY);
+
+  // Khi restrict_vote=true: gửi deviceID cố định → Apps Script sẽ chặn duplicate (team+voter)
+  // Khi restrict_vote=false: thêm timestamp → ID luôn mới → không bao giờ bị chặn
+  const voter = CONFIG.RESTRICT_VOTE
+    ? deviceId
+    : deviceId + "_" + Date.now();
+
+  console.log("[vote] RESTRICT_VOTE:", CONFIG.RESTRICT_VOTE, "| voter:", voter);
 
   const btn = document.getElementById("voteBtn");
   btn.disabled = true; btn.textContent = "Đang gửi..."; msg.textContent = "";
